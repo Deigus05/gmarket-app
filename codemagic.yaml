@@ -53,15 +53,16 @@ workflows:
       - name: Pre-bundle JS for Release (garantir embutido no .app)
         script: |
           set -euo pipefail
-          mkdir -p "$CM_BUILD_DIR/ios/main-js"
-          npx react-native bundle \
+          export CI=1
+          export NODE_ENV=production
+          # Usa Expo CLI (não react-native CLI) — evita depender de @react-native-community/cli
+          npx expo export:embed \
             --platform ios \
             --dev false \
-            --minify true \
             --entry-file node_modules/expo-router/entry.js \
             --bundle-output "$CM_BUILD_DIR/ios/main.jsbundle" \
             --assets-dest "$CM_BUILD_DIR/ios" \
-            --reset-cache
+            --bytecode
           ls -lh "$CM_BUILD_DIR/ios/main.jsbundle"
       - name: Build unsigned IPA for Sideloadly
         script: |
