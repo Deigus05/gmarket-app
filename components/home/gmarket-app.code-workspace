@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../orby-server"
+		},
+		{
+			"path": "../../../orby"
+		}
+	],
+	"settings": {}
+}

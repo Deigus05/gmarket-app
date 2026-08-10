@@ -1,0 +1,124 @@
+{
+  "expo": {
+    "name": "GMarket",
+    "slug": "gmarket-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/gmarket-icon.png",
+    "scheme": "gmarketapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/gmarket-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gmarket.app",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true,
+        "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "waze",
+          "maps"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.gmarket.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/gmarket-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/gmarket-icon.png"
+    },
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "launchMode": "most-recent"
+        }
+      ],
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permita que o GMarket use sua localização para encontrar seu endereço de entrega."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permita que o GMarket aceda às suas fotos para anunciar imóveis.",
+          "cameraPermission": "Permita que o GMarket use a câmara para fotografar imóveis.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Permita que o GMarket use o microfone para enviar mensagens de áudio no suporte."
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/gmarket-icon.png",
+          "color": "#0D47A1",
+          "defaultChannel": "gmarket-default",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          },
+          "ios": {
+            "deploymentTarget": "16.2"
+          }
+        }
+      ],
+      "expo-live-activity",
+      "expo-localization",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "O GMarket usa Face ID para proteger o acesso ao GPay."
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Permita que o GMarket detecte o movimento do telemóvel para a experiência Mágica."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "20c5ce91-b451-4f2b-ac29-3a1133c0deed"
+      }
+    },
+    "owner": "deiguscissoko"
+  }
+}
