@@ -32,7 +32,7 @@ export const unstable_settings = {
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -51,8 +51,23 @@ export default function RootLayout() {
 
   // Builds Sideloadly/Release: se as fontes falharem, não ficar eterno no splash nativo
   useEffect(() => {
-    const timer = setTimeout(() => setFontsTimedOut(true), 4000);
+    const timer = setTimeout(() => setFontsTimedOut(true), 2500);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Esconde o splash nativo o mais cedo possível (evita “preso” se o intro falhar)
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }, 800);
+    const t2 = setTimeout(() => {
+      void SplashScreen.hideAsync().catch(() => undefined);
+      setFontsTimedOut(true);
+    }, 2500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   useEffect(() => {

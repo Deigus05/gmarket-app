@@ -1,4 +1,5 @@
-# Codemagic — IPA para instalar no iPhone com Sideloadly (Apple ID grátis, ~7 dias)
+# Codemagic — IPA produção para Sideloadly (Apple ID grátis, ~7 dias)
+# Sem expo-dev-client: o IPA embute o JS e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
 
 workflows:
@@ -11,26 +12,44 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
-        # Nome gerado pelo `expo prebuild` a partir de app.json → name: "GMarket"
         XCODE_WORKSPACE: GMarket.xcworkspace
         XCODE_SCHEME: GMarket
         EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
+        NODE_ENV: production
     scripts:
       - name: Install npm dependencies
         script: |
           npm ci || npm install
+      - name: Remove expo-dev-client (evita hang à espera do Metro)
+        script: |
+          npm uninstall expo-dev-client || true
+          # Garante que o prebuild não inclui o plugin do dev client
+          node -e "const fs=require('fs'); const p='package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); delete j.dependencies['expo-dev-client']; delete j.devDependencies?.['expo-dev-client']; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');"
       - name: Generate iOS native project
         script: |
-          npx expo prebuild --platform ios --non-interactive
+          npx expo prebuild --platform ios --clean --non-interactive
       - name: Install CocoaPods
         script: |
           cd ios && pod install
+      - name: Pre-bundle JS for Release (garantir embutido no .app)
+        script: |
+          set -euo pipefail
+          mkdir -p "$CM_BUILD_DIR/ios/main-js"
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --minify true \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output "$CM_BUILD_DIR/ios/main.jsbundle" \
+            --assets-dest "$CM_BUILD_DIR/ios" \
+            --reset-cache
+          ls -lh "$CM_BUILD_DIR/ios/main.jsbundle"
       - name: Build unsigned IPA for Sideloadly
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR/ios"
 
-          # Release embute o JS (não precisa de Metro). Sideloadly volta a assinar com o teu Apple ID.
+          # Release + bundle embutido. Sideloadly assina de novo com o Apple ID.
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
@@ -41,6 +60,7 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            SKIP_BUNDLING=1 \
             archive
 
           APP_PATH="$(find "$CM_BUILD_DIR/build/GMarket.xcarchive/Products/Applications" -name '*.app' -print -quit)"
@@ -48,6 +68,19 @@ workflows:
             echo "ERROR: .app not found in archive"
             exit 1
           fi
+
+          # Garante o JS + assets dentro do .app (SKIP_BUNDLING + bundle pré-gerado)
+          cp -f "$CM_BUILD_DIR/ios/main.jsbundle" "$APP_PATH/main.jsbundle"
+          if [ -d "$CM_BUILD_DIR/ios/assets" ]; then
+            rm -rf "$APP_PATH/assets"
+            cp -R "$CM_BUILD_DIR/ios/assets" "$APP_PATH/assets"
+          fi
+          if [ ! -f "$APP_PATH/main.jsbundle" ]; then
+            echo "ERROR: main.jsbundle missing inside .app — app ficaria presa no splash"
+            exit 1
+          fi
+          echo "JS bundle size: $(wc -c < "$APP_PATH/main.jsbundle") bytes"
+          ls -la "$APP_PATH" | head -40
 
           rm -rf "$CM_BUILD_DIR/build/ipa"
           mkdir -p "$CM_BUILD_DIR/build/ipa/Payload"
@@ -59,6 +92,7 @@ workflows:
           ls -lh "$CM_BUILD_DIR/build/GMarket-sideloadly.ipa"
     artifacts:
       - build/*.ipa
+      - ios/main.jsbundle
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
     publishing:
