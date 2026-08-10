@@ -34,12 +34,15 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
+// Em Release/Sideloadly o intro usa a mesma arte do splash nativo e parece “preso”.
+const SHOW_LAUNCH_INTRO = __DEV__;
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
-  const [introVisible, setIntroVisible] = useState(true);
+  const [introVisible, setIntroVisible] = useState(SHOW_LAUNCH_INTRO);
   const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
@@ -49,25 +52,14 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  // Builds Sideloadly/Release: se as fontes falharem, não ficar eterno no splash nativo
+  // Esconde o splash nativo imediatamente — se o JS correu, a UI deve aparecer.
   useEffect(() => {
-    const timer = setTimeout(() => setFontsTimedOut(true), 2500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Esconde o splash nativo o mais cedo possível (evita “preso” se o intro falhar)
-  useEffect(() => {
+    void SplashScreen.hideAsync().catch(() => undefined);
     const t1 = setTimeout(() => {
       void SplashScreen.hideAsync().catch(() => undefined);
-    }, 800);
-    const t2 = setTimeout(() => {
-      void SplashScreen.hideAsync().catch(() => undefined);
       setFontsTimedOut(true);
-    }, 2500);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    }, 1200);
+    return () => clearTimeout(t1);
   }, []);
 
   useEffect(() => {
@@ -87,7 +79,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <RootLayoutNav introDone={!introVisible} />
-      <AppLaunchIntro visible={introVisible} onFinished={onIntroFinished} />
+      {SHOW_LAUNCH_INTRO ? (
+        <AppLaunchIntro visible={introVisible} onFinished={onIntroFinished} />
+      ) : null}
     </GestureHandlerRootView>
   );
 }
