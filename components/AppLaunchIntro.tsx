@@ -15,6 +15,8 @@ import FocusReveal from '@/components/FocusReveal';
 
 const TAGLINE = 'Você merece os melhores produtos!';
 const FADE_OUT_MS = 420;
+/** Se a animação/Reanimated falhar (ex.: IPA Sideloadly), não ficar preso no splash. */
+const INTRO_SAFETY_MS = 4500;
 
 type AppLaunchIntroProps = {
   visible: boolean;
@@ -29,7 +31,7 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
 
   useEffect(() => {
     if (!visible) return;
-    void SplashScreen.hideAsync();
+    void SplashScreen.hideAsync().catch(() => undefined);
   }, [visible]);
 
   const finish = useCallback(() => {
@@ -37,6 +39,14 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
     finishedRef.current = true;
     onFinished();
   }, [onFinished]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => {
+      finish();
+    }, INTRO_SAFETY_MS);
+    return () => clearTimeout(timer);
+  }, [visible, finish]);
 
   useEffect(() => {
     if (!textDone) return;
@@ -48,6 +58,9 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
         if (done) runOnJS(finish)();
       },
     );
+    // Fallback se o callback do Reanimated não correr neste build
+    const timer = setTimeout(() => finish(), FADE_OUT_MS + 400);
+    return () => clearTimeout(timer);
   }, [finish, opacity, textDone]);
 
   const overlayStyle = useAnimatedStyle(() => ({

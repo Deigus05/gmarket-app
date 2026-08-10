@@ -40,17 +40,30 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
   const [introVisible, setIntroVisible] = useState(true);
+  const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
+  // Builds Sideloadly/Release: se as fontes falharem, não ficar eterno no splash nativo
+  useEffect(() => {
+    const timer = setTimeout(() => setFontsTimedOut(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (loaded || fontsTimedOut) {
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [loaded, fontsTimedOut]);
+
   const onIntroFinished = useCallback(() => {
     setIntroVisible(false);
   }, []);
 
-  if (!loaded) {
+  if (!loaded && !fontsTimedOut) {
     return null;
   }
 
