@@ -28,39 +28,24 @@ workflows:
       - name: Prepare Sideloadly production config
         script: |
           set -euo pipefail
-          node <<'NODE'
-          const fs = require('fs');
-
-          const pkgPath = 'package.json';
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          delete pkg.dependencies?.['expo-dev-client'];
-          delete pkg.devDependencies?.['expo-dev-client'];
-          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-
-          const appPath = 'app.json';
-          const app = JSON.parse(fs.readFileSync(appPath, 'utf8'));
-          const strip = new Set(['expo-dev-client', 'expo-live-activity']);
-          app.expo.plugins = (app.expo.plugins ?? []).filter((p) => {
+          node -e '
+          const fs = require("fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          delete pkg.dependencies?.["expo-dev-client"];
+          delete pkg.devDependencies?.["expo-dev-client"];
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          const app = JSON.parse(fs.readFileSync("app.json", "utf8"));
+          const strip = new Set(["expo-dev-client", "expo-live-activity"]);
+          app.expo.plugins = (app.expo.plugins || []).filter((p) => {
             const name = Array.isArray(p) ? p[0] : p;
             return !strip.has(name);
           });
           app.expo.ios = app.expo.ios || {};
-          app.expo.ios.infoPlist = {
-            ...(app.expo.ios.infoPlist || {}),
-            NSSupportsLiveActivities: false,
-          };
-          fs.writeFileSync(appPath, JSON.stringify(app, null, 2) + '\n');
-
-          // Mantém o pacote JS (imports dinâmicos), mas não liga nativo no IPA Sideloadly
-          const rnConfig = `module.exports = {
-  dependencies: {
-    'expo-live-activity': { platforms: { android: null, ios: null } },
-  },
-};
-`;
-          fs.writeFileSync('react-native.config.js', rnConfig);
-          console.log('Sideloadly config: no expo-dev-client; live-activity unlinked');
-          NODE
+          app.expo.ios.infoPlist = Object.assign({}, app.expo.ios.infoPlist || {}, { NSSupportsLiveActivities: false });
+          fs.writeFileSync("app.json", JSON.stringify(app, null, 2) + "\n");
+          fs.writeFileSync("react-native.config.js", "module.exports = { dependencies: { \"expo-live-activity\": { platforms: { android: null, ios: null } } } };\n");
+          console.log("Sideloadly config: no expo-dev-client; live-activity unlinked");
+          '
           npm uninstall expo-dev-client || true
       - name: Generate iOS native project
         script: |
