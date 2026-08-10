@@ -44,7 +44,9 @@ export default function RootLayout() {
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
+    if (error) {
+      console.warn('[GMarket] Falha ao carregar fontes:', error);
+    }
   }, [error]);
 
   // Builds Sideloadly/Release: se as fontes falharem, não ficar eterno no splash nativo
