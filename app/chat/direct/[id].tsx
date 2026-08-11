@@ -36,6 +36,7 @@ import {
   type DirectConversation,
   type SupportMessage,
 } from '@/components/api';
+import { ChatTopBar } from '@/components/chat/ChatTopBar';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { connectChatSocket, type ChatConnectionState } from '@/lib/chatSocket';
@@ -366,32 +367,20 @@ export default function DirectChatScreen() {
         />
       </View>
       <View style={{ height: insets.top }} />
-      <View style={styles.header}>
-        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={20} color={ui.text} />
-        </Pressable>
-        <View style={styles.headerAvatar}>
-          {conversation?.peer.foto_url ? (
-            <Image
-              source={{ uri: conversation.peer.foto_url }}
-              style={styles.headerAvatarImage}
-              contentFit="cover"
-            />
-          ) : (
-            <Text style={styles.headerAvatarInitial}>
-              {(conversation?.peer.nome || '?').slice(0, 1).toUpperCase()}
-            </Text>
-          )}
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{peerName(conversation)}</Text>
-          <Text style={styles.headerSub} numberOfLines={1}>
-            {peerTyping
-              ? '…'
-              : `${conversation?.peer.telefone || ''} · ${t(`chat.connection.${connection}`)}`}
-          </Text>
-        </View>
-      </View>
+      <ChatTopBar
+        title={peerName(conversation) || conversation?.peer.telefone || 'GMarket'}
+        status={
+          peerTyping
+            ? '…'
+            : t(`chat.connection.${connection}`)
+        }
+        online={connection === 'connected'}
+        connecting={connection === 'connecting'}
+        avatarUri={conversation?.peer.foto_url}
+        avatarFallback={conversation?.peer.nome || conversation?.peer.telefone || '?'}
+        onBack={() => router.back()}
+        ui={ui}
+      />
 
       {error ? (
         <Pressable style={styles.errorBar} onPress={() => void loadLatest()}>
@@ -476,38 +465,6 @@ function createStyles(ui: AppUI) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     backgroundImage: { ...StyleSheet.absoluteFillObject },
     backgroundTint: { ...StyleSheet.absoluteFillObject },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      backgroundColor: ui.card,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: ui.border,
-    },
-    iconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: ui.bg,
-    },
-    headerAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: ui.bg,
-    },
-    headerAvatarImage: { width: '100%', height: '100%' },
-    headerAvatarInitial: { fontWeight: '800', color: ui.brand },
-    headerText: { flex: 1, minWidth: 0 },
-    headerTitle: { fontSize: 16, fontWeight: '800', color: ui.text },
-    headerSub: { fontSize: 12, color: ui.muted, marginTop: 2 },
     messageList: { paddingHorizontal: 12, paddingVertical: 10 },
     emptyList: { flexGrow: 1, justifyContent: 'center' },
     emptyCard: { alignItems: 'center', padding: 24 },

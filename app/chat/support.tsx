@@ -8,7 +8,6 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -49,12 +48,14 @@ import {
   type SupportConversation,
   type SupportMessage,
 } from '@/components/api';
+import { ChatTopBar } from '@/components/chat/ChatTopBar';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { connectChatSocket, type ChatConnectionState } from '@/lib/chatSocket';
 import { compressImagesForUpload } from '@/lib/imageOptimization';
 
 const PAGE_SIZE = 30;
+const SUPPORT_ROBOT = require('../../assets/images/support-robot.png');
 
 function messageKey(message: SupportMessage) {
   return message.client_message_id || message.id;
@@ -610,13 +611,15 @@ export default function ChatScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ChatHeader
+        <ChatTopBar
           title={t('chat.title')}
-          subtitle={`${t('chat.official')} · ${t('chat.connection.disconnected')}`}
-          connection="disconnected"
+          status={t(`chat.connection.${connection}`)}
+          online={connection === 'connected'}
+          connecting={connection === 'connecting'}
+          avatarSource={SUPPORT_ROBOT}
+          avatarFallback="G"
           onBack={() => router.back()}
           ui={ui}
-          styles={styles}
         />
         <View style={styles.guest}>
           <View style={styles.guestIcon}>
@@ -660,13 +663,19 @@ export default function ChatScreen() {
         />
       </View>
       <View style={{ height: insets.top }} />
-      <ChatHeader
-        title={t('chat.title')}
-        subtitle={`${t('chat.official')} · ${t(`chat.connection.${connection}`)}`}
-        connection={connection}
+      <ChatTopBar
+        title={t('chat.supportTeam')}
+        status={
+          supportTyping
+            ? '…'
+            : t(`chat.connection.${connection}`)
+        }
+        online={connection === 'connected'}
+        connecting={connection === 'connecting'}
+        avatarSource={SUPPORT_ROBOT}
+        avatarFallback="G"
         onBack={() => router.back()}
         ui={ui}
-        styles={styles}
       />
 
       {error ? (
@@ -700,7 +709,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyCard}>
               <Image
-                source={require('../../assets/images/support-robot.jpg')}
+                source={require('../../assets/images/support-robot.png')}
                 style={styles.emptyRobot}
                 contentFit="contain"
               />
@@ -979,120 +988,12 @@ function TypingIndicator({ styles }: {
   );
 }
 
-function ChatHeader({
-  title,
-  subtitle,
-  connection,
-  onBack,
-  ui,
-  styles,
-}: {
-  title: string;
-  subtitle: string;
-  connection: ChatConnectionState;
-  onBack: () => void;
-  ui: AppUI;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  return (
-    <View style={styles.header}>
-      <Pressable style={styles.backButton} onPress={onBack}>
-        <BlurView
-          intensity={28}
-          tint={ui.statusBar === 'light' ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-        <Ionicons name="arrow-back" size={21} color={ui.text} />
-      </Pressable>
-      <BlurView
-        intensity={28}
-        tint={ui.statusBar === 'light' ? 'dark' : 'light'}
-        style={styles.headerCard}
-      >
-        <View style={styles.headerText}>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.statusRow}>
-          <View
-            style={[
-              styles.statusDot,
-              connection === 'connected'
-                ? styles.connectedDot
-                : connection === 'connecting'
-                  ? styles.connectingDot
-                  : styles.disconnectedDot,
-            ]}
-          />
-          <Text style={styles.subtitle}>{subtitle}</Text>
-        </View>
-        </View>
-      </BlurView>
-    </View>
-  );
-}
-
 function createStyles(ui: AppUI) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: ui.bg },
     backgroundImage: { ...StyleSheet.absoluteFillObject },
     backgroundTint: { ...StyleSheet.absoluteFillObject },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-    header: {
-      height: 64,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 56,
-      backgroundColor: 'transparent',
-    },
-    backButton: {
-      position: 'absolute',
-      left: 10,
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      backgroundColor: ui.statusBar === 'light'
-        ? 'rgba(28,28,30,0.42)'
-        : 'rgba(255,255,255,0.58)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: ui.statusBar === 'light'
-        ? 'rgba(255,255,255,0.14)'
-        : 'rgba(255,255,255,0.72)',
-      zIndex: 2,
-    },
-    headerCard: {
-      minWidth: 218,
-      maxWidth: 260,
-      height: 52,
-      borderRadius: 26,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 22,
-      backgroundColor: ui.statusBar === 'light'
-        ? 'rgba(28,28,30,0.48)'
-        : 'rgba(245,245,247,0.62)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: ui.statusBar === 'light'
-        ? 'rgba(255,255,255,0.14)'
-        : 'rgba(255,255,255,0.8)',
-    },
-    headerText: { alignItems: 'center', justifyContent: 'center' },
-    title: { color: ui.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
-    statusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 5,
-      marginTop: 1,
-    },
-    statusDot: { width: 7, height: 7, borderRadius: 4 },
-    connectedDot: { backgroundColor: ui.success },
-    connectingDot: { backgroundColor: '#F59E0B' },
-    disconnectedDot: { backgroundColor: ui.muted },
-    subtitle: { color: ui.muted, fontSize: 11, fontWeight: '600' },
     errorBar: {
       flexDirection: 'row',
       alignItems: 'center',
