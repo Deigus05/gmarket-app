@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -22,6 +22,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const fieldY = useRef<Record<string, number>>({});
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const styles = useMemo(() => createStyles(ui), [ui]);
@@ -32,6 +33,11 @@ export default function RegisterScreen() {
   const [apelido, setApelido] = useState('');
   const [genero, setGenero] = useState<'masculino' | 'feminino' | null>(null);
   const [telefone, setTelefone] = useState('');
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  };
+
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,10 +48,19 @@ export default function RegisterScreen() {
     const y = fieldY.current[key];
     if (y == null) return;
     // Wait for keyboard/KAV to settle, then nudge just enough — not to the end.
-    setTimeout(() => {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      scrollTimerRef.current = null;
       scrollRef.current?.scrollTo({ y: Math.max(0, y - 20), animated: true });
     }, 80);
   };
+
+  useEffect(
+    () => () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    },
+    [],
+  );
 
   const handleRegister = async () => {
     setError('');
@@ -109,7 +124,7 @@ export default function RegisterScreen() {
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
             <Ionicons name="arrow-back" size={22} color={ui.text} />
           </TouchableOpacity>
 

@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -80,42 +80,54 @@ export default function EventoDetalheScreen() {
   const [gallerySession, setGallerySession] = useState(0);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryLabels, setGalleryLabels] = useState<(string | null)[] | null>(null);
+  const loadGenerationRef = useRef(0);
+  const loadedEventIdRef = useRef<string | null>(null);
+  const navigationInFlightRef = useRef(false);
   const galleryCaption = galleryLabels?.[galleryIndex] ?? null;
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      if (!id) {
-        setLoading(false);
-        return;
-      }
+  useFocusEffect(
+    useCallback(() => {
+      const generation = ++loadGenerationRef.current;
+      navigationInFlightRef.current = false;
 
-      const cached = getCachedEvent(id);
-      if (cached) {
-        setEvent(cached);
-        setLoading(false);
-        void Image.prefetch(cached.images);
-      } else {
-        setLoading(true);
-      }
+      async function load() {
+        const isCurrent = () => loadGenerationRef.current === generation;
+        if (!isCurrent()) return;
+        if (!id) {
+          setLoading(false);
+          return;
+        }
 
-      const apiEvent = await fetchEventById(id);
-      if (!active) return;
-      if (apiEvent) {
-        const record = eventDtoToRecord(apiEvent);
-        cacheEvent(record);
-        setEvent(record);
-        void Image.prefetch(record.images);
-      } else if (!cached) {
-        setEvent(undefined);
+        const cached = getCachedEvent(id);
+        if (cached) {
+          setEvent(cached);
+          setLoading(false);
+          void Image.prefetch(cached.images);
+        } else {
+          setLoading(true);
+        }
+
+        if (loadedEventIdRef.current === id) return;
+        const apiEvent = await fetchEventById(id);
+        if (!isCurrent()) return;
+        if (apiEvent) {
+          const record = eventDtoToRecord(apiEvent);
+          cacheEvent(record);
+          setEvent(record);
+          void Image.prefetch(record.images);
+        } else if (!cached) {
+          setEvent(undefined);
+        }
+        setLoading(false);
+        loadedEventIdRef.current = id;
       }
-      setLoading(false);
-    }
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [id]);
+      void load();
+      return () => {
+        loadGenerationRef.current += 1;
+        navigationInFlightRef.current = false;
+      };
+    }, [id]),
+  );
 
   const totalLabel = useMemo(() => {
     if (!event) return '';
@@ -124,7 +136,8 @@ export default function EventoDetalheScreen() {
   }, [event, qty, t]);
 
   const onBuy = () => {
-    if (!event) return;
+    if (!event || navigationInFlightRef.current) return;
+    navigationInFlightRef.current = true;
     if (!isLoggedIn) {
       router.push({
         pathname: '/login',
@@ -137,6 +150,11 @@ export default function EventoDetalheScreen() {
       params: { eventId: event.id, qty: String(qty) },
     });
   };
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/eventos');
+  }, [router]);
 
   if (loading) {
     return (
@@ -154,13 +172,13 @@ export default function EventoDetalheScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <StatusBar style={theme.statusBar} />
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.iconBtn} onPress={goBack} activeOpacity={0.75}>
             <Ionicons name="arrow-back" size={22} color={theme.icon} />
           </TouchableOpacity>
         </View>
         <View style={styles.emptyWrap}>
           <Text style={[styles.emptyText, { color: theme.ink }]}>{t('events.notFound')}</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.emptyBtn}>
+          <TouchableOpacity onPress={goBack} style={styles.emptyBtn}>
             <Text style={styles.emptyBtnText}>{t('events.backToEvents')}</Text>
           </TouchableOpacity>
         </View>
@@ -215,7 +233,7 @@ export default function EventoDetalheScreen() {
           <View style={[styles.heroTop, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
             <TouchableOpacity
               style={styles.heroIconBtn}
-              onPress={() => router.back()}
+              onPress={goBack}
               activeOpacity={0.8}
             >
               <Ionicons name="arrow-back" size={22} color="#fff" />

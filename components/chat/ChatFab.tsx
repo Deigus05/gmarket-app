@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/components/AuthContext';
-import { getSupportConversation } from '@/components/api';
+import { getDirectConversations, getSupportConversation } from '@/components/api';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme } from '@/components/tema';
 import { connectChatSocket } from '@/lib/chatSocket';
@@ -24,8 +24,20 @@ export function ChatFab() {
       setUnread(0);
       return;
     }
-    const result = await getSupportConversation(token);
-    if (result.success) setUnread(Math.max(0, Number(result.data.unread_count || 0)));
+    const [supportResult, directResult] = await Promise.all([
+      getSupportConversation(token),
+      getDirectConversations(token),
+    ]);
+    const supportUnread = supportResult.success
+      ? Math.max(0, Number(supportResult.data.unread_count || 0))
+      : 0;
+    const directUnread = directResult.success
+      ? (directResult.data.conversations || []).reduce(
+        (sum, item) => sum + Math.max(0, Number(item.unread_count || 0)),
+        0,
+      )
+      : 0;
+    setUnread(supportUnread + directUnread);
   }, [isLoggedIn, token]);
 
   useFocusEffect(
@@ -38,19 +50,36 @@ export function ChatFab() {
 
   useEffect(() => {
     if (!token || !isLoggedIn || !focused) return;
-    const session = connectChatSocket({
+    const supportSession = connectChatSocket({
       token,
+      channel: 'support',
       onMessage: (message) => {
         if (message.sender_type !== 'customer') setUnread((count) => count + 1);
       },
       onConversation: (conversation) => {
+        if ('peer' in conversation) return;
         if (typeof conversation.unread_count === 'number') {
-          setUnread(Math.max(0, conversation.unread_count));
+          void refresh();
         }
       },
     });
-    return session.teardown;
-  }, [focused, isLoggedIn, token]);
+    const directSession = connectChatSocket({
+      token,
+      channel: 'direct',
+      onMessage: (message) => {
+        if (message.sender_type === 'customer' || message.sender_id) {
+          void refresh();
+        }
+      },
+      onConversation: () => {
+        void refresh();
+      },
+    });
+    return () => {
+      supportSession.teardown();
+      directSession.teardown();
+    };
+  }, [focused, isLoggedIn, refresh, token]);
 
   return (
     <View

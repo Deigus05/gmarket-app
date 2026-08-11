@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -29,7 +30,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  createOrder,
+  createOrderBatch,
   getGcoinWallet,
   getProductById,
   validatePromoCode,
@@ -153,6 +154,9 @@ export default function CheckoutScreen() {
   const [buyerApelido, setBuyerApelido] = useState('');
   const [buyerTelefone, setBuyerTelefone] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+  const purchaseInFlightRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [showTornado, setShowTornado] = useState(false);
   const [successOrder, setSuccessOrder] = useState<{ id: string; orderNumber: string } | null>(null);
   const [promoInput, setPromoInput] = useState('');
@@ -163,6 +167,25 @@ export default function CheckoutScreen() {
   const checkScale = useSharedValue(0);
   const ringScale = useSharedValue(0.6);
   const ringOpacity = useSharedValue(0.5);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!purchaseInFlightRef.current) idempotencyKeyRef.current = null;
+  }, [
+    appliedPromo?.code,
+    buyerApelido,
+    buyerNome,
+    buyerTelefone,
+    lines,
+    orderMethod,
+    paymentMethod,
+  ]);
 
   const hydrateBuyer = useCallback(() => {
     if (!user) return;
@@ -197,7 +220,14 @@ export default function CheckoutScreen() {
             if (active) setLines([fromParams]);
           } else {
             const stored = await getCheckoutDraftJson();
-            const parsed = stored ? normalizeCheckoutLines(JSON.parse(stored)) : [];
+            let parsed: CheckoutLine[] = [];
+            if (stored) {
+              try {
+                parsed = normalizeCheckoutLines(JSON.parse(stored));
+              } catch {
+                await clearCheckoutDraft();
+              }
+            }
             if (active) setLines(parsed);
           }
         } finally {
@@ -469,16 +499,26 @@ export default function CheckoutScreen() {
     setSuccessOrder(null);
   }, []);
 
+  const navigateAfterSuccess = useCallback(
+    (destination: Href) => {
+      closeSuccessFlow();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          InteractionManager.runAfterInteractions(() => router.navigate(destination));
+        });
+      });
+    },
+    [closeSuccessFlow, router],
+  );
+
   const goToOrder = () => {
     if (!successOrder) return;
     const orderId = successOrder.id;
-    closeSuccessFlow();
-    router.replace({ pathname: '/entrega', params: { orderId } });
+    navigateAfterSuccess({ pathname: '/entrega', params: { orderId } });
   };
 
   const goHome = () => {
-    closeSuccessFlow();
-    router.replace('/(tabs)');
+    navigateAfterSuccess('/(tabs)');
   };
 
   const successCard = successOrder ? (
@@ -526,6 +566,7 @@ export default function CheckoutScreen() {
   }, []);
 
   const handleConfirmPurchase = async () => {
+    if (purchaseInFlightRef.current) return;
     if (!isLoggedIn || !token) {
       router.push({ pathname: '/login', params: { redirect: 'checkout' } });
       return;
@@ -551,81 +592,43 @@ export default function CheckoutScreen() {
       return;
     }
 
+    purchaseInFlightRef.current = true;
     setSubmitting(true);
     try {
-      let chargedTotal = 0;
-      let lastOrder: { id: string; orderNumber: string } | null = null;
-
-      let remainingFixedDiscount =
-        appliedPromo?.discount_type === 'fixed'
-          ? Math.max(0, Number(appliedPromo.discount_amount) || 0)
-          : null;
-
-      for (let index = 0; index < lines.length; index++) {
-        const line = lines[index];
-        const quantity = Math.max(1, Number(line.quantity || 1));
-        const lineSubtotal = Number(line.price || 0) * quantity;
-        const realVariantId =
-          line.variantId && !line.variantId.startsWith('legacy-')
-            ? line.variantId
-            : undefined;
-
-        const sendPromo =
-          appliedPromo
-          && (
-            appliedPromo.discount_type === 'percent'
-            || (remainingFixedDiscount != null && remainingFixedDiscount > 0)
-          )
-            ? appliedPromo.code
-            : undefined;
-
-        const estimatedFixedCut =
-          sendPromo && remainingFixedDiscount != null
-            ? Math.min(remainingFixedDiscount, Math.max(0, Math.round(lineSubtotal)))
-            : 0;
-        const consumePromo =
-          !!sendPromo
-          && (
-            appliedPromo?.discount_type === 'percent'
-              ? index === lines.length - 1
-              : remainingFixedDiscount != null
-                && remainingFixedDiscount - estimatedFixedCut <= 0
-          );
-
-        const result = await createOrder(token, {
+      const idempotencyKey =
+        idempotencyKeyRef.current ||
+        `checkout-${user?.id || 'customer'}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+      idempotencyKeyRef.current = idempotencyKey;
+      const result = await createOrderBatch(token, {
+        idempotency_key: idempotencyKey,
+        items: lines.map((line) => ({
           productId: line.productId,
-          variantId: realVariantId,
-          quantity,
-          fulfillment_method: orderMethod,
-          payment_method: paymentMethod,
-          buyer_nome: buyerNome.trim(),
-          buyer_apelido: buyerApelido.trim(),
-          buyer_telefone: buyerTelefone.trim(),
-          variant_label: line.variantLabel,
-          promo_code: sendPromo,
-          promo_max_discount:
-            sendPromo && remainingFixedDiscount != null
-              ? remainingFixedDiscount
+          variantId:
+            line.variantId && !line.variantId.startsWith('legacy-')
+              ? line.variantId
               : undefined,
-          promo_consume: consumePromo,
-        });
+          variantLabel: line.variantLabel,
+          quantity: Math.max(1, Number(line.quantity || 1)),
+        })),
+        fulfillment_method: orderMethod,
+        payment_method: paymentMethod,
+        buyer_nome: buyerNome.trim(),
+        buyer_apelido: buyerApelido.trim(),
+        buyer_telefone: buyerTelefone.trim(),
+        promo_code: appliedPromo?.code,
+      });
 
-        if (!result.success) {
-          dismissTornado();
-          Alert.alert(t('checkout.confirmFailTitle'), result.message);
-          return;
-        }
-
-        if (remainingFixedDiscount != null) {
-          remainingFixedDiscount = Math.max(
-            0,
-            remainingFixedDiscount - Number(result.data.discount_amount || 0),
-          );
-        }
-
-        chargedTotal += Number(result.data.total || 0);
-        lastOrder = { id: result.data.id, orderNumber: result.data.order_number };
+      if (!result.success) {
+        dismissTornado();
+        Alert.alert(t('checkout.confirmFailTitle'), result.message);
+        return;
       }
+
+      const lastCreated = result.data.orders[result.data.orders.length - 1];
+      const chargedTotal = Number(result.data.total || 0);
+      const lastOrder = lastCreated
+        ? { id: lastCreated.id, orderNumber: lastCreated.order_number }
+        : null;
 
       if (!lastOrder) {
         dismissTornado();
@@ -644,8 +647,13 @@ export default function CheckoutScreen() {
       try {
         const cartRaw = await getCartJson();
         if (cartRaw) {
-          const cartList: Array<{ id: string; productId?: string; variantId?: string }> =
-            JSON.parse(cartRaw);
+          const parsedCart: unknown = JSON.parse(cartRaw);
+          if (!Array.isArray(parsedCart)) throw new Error('Carrinho local inválido');
+          const cartList = parsedCart as Array<{
+            id: string;
+            productId?: string;
+            variantId?: string;
+          }>;
           const nextCart = cartList.filter((item) => {
             const key = item.id || `${item.productId}:${item.variantId || ''}`;
             return !purchasedIds.has(key);
@@ -654,9 +662,11 @@ export default function CheckoutScreen() {
         }
       } catch (error) {
         console.log('Erro ao limpar itens comprados do carrinho:', error);
+        await setCartJson('[]');
       }
 
       await clearCheckoutDraft();
+      idempotencyKeyRef.current = null;
 
       const itemLines = lines
         .map(
@@ -699,7 +709,8 @@ export default function CheckoutScreen() {
       dismissTornado();
       Alert.alert(t('common.error'), t('checkout.confirmFailMessage'));
     } finally {
-      setSubmitting(false);
+      purchaseInFlightRef.current = false;
+      if (mountedRef.current) setSubmitting(false);
     }
   };
 
@@ -1181,7 +1192,7 @@ export default function CheckoutScreen() {
         </TouchableOpacity>
       </View>
 
-      <TornadoOverlay visible={showTornado} prewarm>
+      <TornadoOverlay visible={showTornado} prewarm={submitting || showTornado}>
         {!!successOrder && (
           <View style={styles.successOverlay} pointerEvents="box-none">
             {successCard}

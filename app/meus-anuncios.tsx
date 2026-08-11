@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -57,7 +57,8 @@ export default function MeusAnunciosScreen() {
   const { t } = useLocale();
   const { ui } = useAppTheme();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const { token, isLoggedIn } = useAuth();
+  const { token, isLoggedIn, loading: authLoading } = useAuth();
+  const loginRequestedRef = useRef(false);
 
   const [items, setItems] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,12 +87,16 @@ export default function MeusAnunciosScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (authLoading) return;
       if (!isLoggedIn) {
-        router.replace({ pathname: '/login', params: { redirect: '/meus-anuncios' } });
+        if (loginRequestedRef.current) return;
+        loginRequestedRef.current = true;
+        router.push({ pathname: '/login', params: { redirect: '/meus-anuncios' } });
         return;
       }
+      loginRequestedRef.current = false;
       load();
-    }, [isLoggedIn, load, router]),
+    }, [authLoading, isLoggedIn, load, router]),
   );
 
   const toggleVisibility = (item: Property) => {

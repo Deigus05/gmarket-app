@@ -1,6 +1,7 @@
 # Codemagic — IPA produção para Sideloadly (Apple ID grátis, ~7 dias)
 # Sem expo-dev-client: o IPA embute o JS via Xcode e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
+# Atualizado 2026-08-11: inbox chat (Conversa/Contato), robô suporte, expo-contacts
 
 workflows:
   ios-sideloadly:

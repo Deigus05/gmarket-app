@@ -7,6 +7,7 @@ import {
   Alert,
   BackHandler,
   Dimensions,
+  InteractionManager,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -43,6 +44,7 @@ import { syncDeliveryLiveActivities } from '@/components/deliveryLiveActivity';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { getAllProductReviews, reviewKey, saveProductReview } from '@/lib/localReviews';
+import { createReturnPath } from '@/lib/navigation';
 
 type TranslateFn = (scope: string, options?: Record<string, unknown>) => string;
 
@@ -497,11 +499,13 @@ export default function EntregaScreen() {
   ordersRef.current = orders;
   const orderIdParamRef = useRef(orderIdParam);
   orderIdParamRef.current = orderIdParam;
+  const loadGenerationRef = useRef(0);
 
   const loadOrders = useCallback(async (
     keepSelectedId?: string | null,
     options?: { silent?: boolean },
   ) => {
+    const generation = ++loadGenerationRef.current;
     if (!token) {
       setOrders([]);
       setSelectedOrder(null);
@@ -515,6 +519,7 @@ export default function EntregaScreen() {
     try {
       if (orderIdParam && !keepSelectedId) {
         const result = await getOrderById(token, orderIdParam);
+        if (generation !== loadGenerationRef.current) return;
         if (!result.success || !result.data) {
           if (!silent) {
             setError(result.message || t('delivery.loadError'));
@@ -525,6 +530,7 @@ export default function EntregaScreen() {
         setSelectedOrder(result.data);
         // Also load full list in background for organized view after back
         const list = await getMyOrders(token);
+        if (generation !== loadGenerationRef.current) return;
         if (list.success) {
           const ordersList = asOrderList(list.data);
           setOrders(ordersList);
@@ -537,6 +543,7 @@ export default function EntregaScreen() {
       }
 
       const result = await getMyOrders(token);
+      if (generation !== loadGenerationRef.current) return;
       if (!result.success) {
         if (!silent) {
           setError(result.message || t('delivery.loadError'));
@@ -565,12 +572,19 @@ export default function EntregaScreen() {
         if (!keepSelectedId) setSelectedOrder(null);
       }
     } finally {
-      if (!silent) {
+      if (!silent && generation === loadGenerationRef.current) {
         setLoading(false);
         setRefreshing(false);
       }
     }
   }, [orderIdParam, t, token]);
+
+  useEffect(
+    () => () => {
+      loadGenerationRef.current += 1;
+    },
+    [],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -719,12 +733,16 @@ export default function EntregaScreen() {
         // Limpar deep-link sem replace (replace remonta e dispara useDismissedRouteError).
         router.setParams({ orderId: '' });
       }
-      router.push({
-        pathname: '/avaliacao',
-        params: {
-          orderId: order.id,
-          productId: item?.product_id || '',
-        },
+      requestAnimationFrame(() => {
+        InteractionManager.runAfterInteractions(() => {
+          router.push({
+            pathname: '/avaliacao',
+            params: {
+              orderId: order.id,
+              productId: item?.product_id || '',
+            },
+          });
+        });
       });
     },
     [router],
@@ -872,7 +890,11 @@ export default function EntregaScreen() {
 
   const goBack = useCallback(() => {
     if (dismissOrderDetail()) return;
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
   }, [dismissOrderDetail, router]);
 
   // Soft-back só com botão custom + Android back focado.
@@ -909,11 +931,18 @@ export default function EntregaScreen() {
             <Text style={styles.emptySub}>{t('delivery.guestSubtitle')}</Text>
             <Pressable
               style={styles.primaryBtn}
-              onPress={() => router.push({ pathname: '/login', params: { redirect: 'entrega' } })}
+              onPress={() =>
+                router.push({
+                  pathname: '/login',
+                  params: {
+                    redirect: createReturnPath('/entrega', { orderId: orderIdParam }),
+                  },
+                })
+              }
             >
               <Text style={styles.primaryBtnText}>{t('common.login')}</Text>
             </Pressable>
-            <Pressable style={styles.ghostBtn} onPress={() => router.back()}>
+            <Pressable style={styles.ghostBtn} onPress={goBack}>
               <Text style={styles.ghostBtnText}>{t('common.back')}</Text>
             </Pressable>
           </View>

@@ -3,6 +3,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -39,6 +40,7 @@ export default function RootLayout() {
   });
   const [introVisible, setIntroVisible] = useState(SHOW_LAUNCH_INTRO);
   const [fontsTimedOut, setFontsTimedOut] = useState(false);
+  const appReady = loaded || fontsTimedOut;
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -47,8 +49,7 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  // Não bloqueia o splash nativo: o Expo esconde-o automaticamente.
-  // O timeout impede apenas que uma fonte com erro deixe a árvore React vazia.
+  // Timeout impede que uma fonte com erro deixe a árvore React vazia.
   useEffect(() => {
     const t1 = setTimeout(() => {
       setFontsTimedOut(true);
@@ -56,11 +57,27 @@ export default function RootLayout() {
     return () => clearTimeout(t1);
   }, []);
 
+  // Expo Router chama preventAutoHide; em Release Android o splash nativo
+  // podia ficar preso se o hide implícito falhasse (ex.: crash/hang na Home).
+  // Escondemos explicitamente assim que a UI pode montar.
+  useEffect(() => {
+    if (!appReady) return;
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, [appReady]);
+
+  // Rede de segurança: nunca deixar o splash nativo mais de ~3s.
+  useEffect(() => {
+    const safety = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => undefined);
+    }, 3000);
+    return () => clearTimeout(safety);
+  }, []);
+
   const onIntroFinished = useCallback(() => {
     setIntroVisible(false);
   }, []);
 
-  if (!loaded && !fontsTimedOut) {
+  if (!appReady) {
     return null;
   }
 
@@ -139,6 +156,7 @@ function ThemedNavigation() {
         <Stack.Screen name="idioma" options={{ headerShown: false }} />
         <Stack.Screen name="dados-pessoais" options={{ headerShown: false }} />
         <Stack.Screen name="seguranca" options={{ headerShown: false }} />
+        <Stack.Screen name="gpay" options={{ headerShown: false }} />
         <Stack.Screen name="ajuda" options={{ headerShown: false }} />
         <Stack.Screen name="parceria" options={{ headerShown: false }} />
         <Stack.Screen name="termos" options={{ headerShown: false }} />

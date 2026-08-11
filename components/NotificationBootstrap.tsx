@@ -10,7 +10,6 @@ import { syncDeliveryLiveActivities } from '@/components/deliveryLiveActivity';
 import {
   announceNewInboxNotifications,
   clearPresentedNotifications,
-  isSupportNotification,
   registerForPushNotificationsAsync,
   resolveNotificationRoute,
 } from '@/components/notifications';
@@ -96,19 +95,11 @@ export function NotificationBootstrap() {
 
   useEffect(() => {
     const openFromData = (data: Record<string, unknown> | undefined) => {
-      // Suporte sempre abre o chat — nunca a página de notificações.
-      if (isSupportNotification({ type: data?.type, data })) {
-        router.push('/chat');
-        return;
-      }
+      // Chat (suporte / direto) nunca abre a página de notificações.
       const target = resolveNotificationRoute(data);
       if (!target) return;
       if (target.pathname === '/(tabs)') {
         router.push('/(tabs)');
-        return;
-      }
-      if (target.pathname === '/chat') {
-        router.push('/chat');
         return;
       }
       router.push(target as never);

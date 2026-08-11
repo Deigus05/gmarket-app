@@ -59,7 +59,7 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   }
 }
 
-const AUTH_FETCH_TIMEOUT_MS = 12_000;
+const AUTH_FETCH_TIMEOUT_MS = 20_000;
 
 function authFetch(input: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
@@ -938,15 +938,40 @@ export type AuthSession = {
   user: Customer;
 };
 
-export type ApiResult<T> = { success: true; data: T; message?: string } | { success: false; message: string };
+export type ApiResult<T> =
+  | { success: true; data: T; message?: string }
+  | {
+      success: false;
+      message: string;
+      /** unauthorized = sessão morta; network = manter token; other = erro genérico */
+      reason?: 'unauthorized' | 'network' | 'other';
+    };
 
 async function parseAuthResponse<T>(response: Response): Promise<ApiResult<T>> {
   const result = await response.json().catch(() => ({}));
   if (response.ok && result.success) {
     return { success: true, data: result.data as T, message: result.message };
   }
+  if (response.status === 401 || response.status === 403) {
+    return {
+      success: false,
+      reason: 'unauthorized',
+      message:
+        typeof result.message === 'string'
+          ? result.message
+          : 'Sessão inválida ou expirada.',
+    };
+  }
+  if (response.status >= 500 || response.status === 408 || response.status === 429) {
+    return {
+      success: false,
+      reason: 'network',
+      message: 'Sem ligação ao servidor.',
+    };
+  }
   return {
     success: false,
+    reason: 'other',
     message: typeof result.message === 'string' ? result.message : 'Não foi possível concluir o pedido.',
   };
 }
@@ -989,14 +1014,28 @@ export async function loginCustomer(input: {
 }
 
 export async function fetchCurrentCustomer(token: string): Promise<ApiResult<Customer>> {
-  try {
+  const attempt = async (): Promise<ApiResult<Customer>> => {
     const response = await authFetch(`${API_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return parseAuthResponse<Customer>(response);
-  } catch (error) {
-    console.log('Erro ao carregar perfil:', error);
-    return { success: false, message: 'Sem ligação ao servidor.' };
+  };
+
+  try {
+    return await attempt();
+  } catch (firstError) {
+    // Rede lenta / troca de Wi‑Fi: uma segunda tentativa antes de desistir.
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      return await attempt();
+    } catch (error) {
+      console.log('Erro ao carregar perfil:', error || firstError);
+      return {
+        success: false,
+        reason: 'network',
+        message: 'Sem ligação ao servidor.',
+      };
+    }
   }
 }
 
@@ -1329,6 +1368,57 @@ export async function createOrder(
   }
 }
 
+export type OrderBatchResult = {
+  orders: Array<{
+    id: string;
+    order_number: string;
+    store_id?: string | null;
+    store_name?: string | null;
+    subtotal: number;
+    delivery_fee: number;
+    discount_amount: number;
+    total: number;
+  }>;
+  total: number;
+  discount_amount: number;
+  idempotency_key: string;
+};
+
+export async function createOrderBatch(
+  token: string,
+  input: {
+    idempotency_key: string;
+    items: Array<{
+      productId: string;
+      variantId?: string;
+      variantLabel?: string;
+      quantity: number;
+    }>;
+    fulfillment_method: 'entrega' | 'recolha';
+    payment_method: 'entrega' | 'gpay';
+    buyer_nome: string;
+    buyer_apelido?: string;
+    buyer_telefone: string;
+    promo_code?: string;
+  },
+): Promise<ApiResult<OrderBatchResult>> {
+  try {
+    const response = await fetch(`${API_URL}/api/orders/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Idempotency-Key': input.idempotency_key,
+      },
+      body: JSON.stringify(input),
+    });
+    return parseAuthResponse<OrderBatchResult>(response);
+  } catch (error) {
+    console.log('Erro ao criar pedidos em lote:', error);
+    return { success: false, message: 'Sem ligação ao servidor. Pode tentar novamente com segurança.' };
+  }
+}
+
 export async function getMyOrders(
   token: string,
   status?: 'active' | OrderStatus,
@@ -1631,7 +1721,8 @@ export type AppNotificationType =
   | 'gmarket_promo'
   | 'delivery_status'
   | 'ticket_confirmed'
-  | 'support_message';
+  | 'support_message'
+  | 'direct_message';
 
 export type AppNotification = {
   id: string;
@@ -1972,6 +2063,210 @@ export async function markSupportConversationRead(
     return parseAuthResponse(response);
   } catch (error) {
     console.log('Erro ao marcar conversa de suporte como lida:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+// ─── CHAT DIRETO / CONTACTOS ─────────────────────────────────────────────────
+
+export type ChatPeer = {
+  id: string;
+  nome: string;
+  apelido: string;
+  telefone: string;
+  foto_url?: string | null;
+  matched_phone?: string;
+};
+
+export type DirectConversation = {
+  id: string;
+  peer: ChatPeer;
+  unread_count?: number;
+  last_message?: SupportMessage | null;
+  last_message_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export async function matchPhoneContacts(
+  token: string,
+  phones: string[],
+): Promise<ApiResult<{ contacts: ChatPeer[] }>> {
+  try {
+    const response = await apiFetch(`${API_URL}/api/me/contacts/match`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phones }),
+    });
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao cruzar contactos:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function getDirectConversations(
+  token: string,
+): Promise<ApiResult<{ conversations: DirectConversation[] }>> {
+  try {
+    const response = await apiFetch(`${API_URL}/api/me/direct/conversations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao listar conversas diretas:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function openDirectConversation(
+  token: string,
+  peerId: string,
+): Promise<ApiResult<DirectConversation>> {
+  try {
+    const response = await apiFetch(`${API_URL}/api/me/direct/conversations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ peer_id: peerId }),
+    });
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao abrir conversa direta:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function getDirectConversation(
+  token: string,
+  conversationId: string,
+): Promise<ApiResult<DirectConversation>> {
+  try {
+    const response = await apiFetch(
+      `${API_URL}/api/me/direct/conversations/${encodeURIComponent(conversationId)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao carregar conversa direta:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function getDirectMessages(
+  token: string,
+  conversationId: string,
+  options?: { before?: string | null; limit?: number },
+): Promise<ApiResult<SupportMessagesPage>> {
+  try {
+    const params = new URLSearchParams();
+    params.set('limit', String(Math.max(1, Math.min(options?.limit ?? 30, 100))));
+    if (options?.before) params.set('before', options.before);
+    const response = await apiFetch(
+      `${API_URL}/api/me/direct/conversations/${encodeURIComponent(conversationId)}/messages?${params}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const parsed = await parseAuthResponse<
+      SupportMessage[] | {
+        messages?: SupportMessage[];
+        items?: SupportMessage[];
+        has_more?: boolean;
+        next_before?: string | null;
+      }
+    >(response);
+    if (!parsed.success) return parsed;
+    const raw = parsed.data;
+    const messages = Array.isArray(raw) ? raw : raw.messages || raw.items || [];
+    const explicitHasMore = Array.isArray(raw) ? undefined : raw.has_more;
+    const explicitNext = Array.isArray(raw) ? undefined : raw.next_before;
+    const oldest = [...messages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )[0];
+    return {
+      success: true,
+      data: {
+        messages,
+        has_more: explicitHasMore ?? messages.length >= (options?.limit ?? 30),
+        next_before: explicitNext ?? oldest?.id ?? null,
+      },
+      message: parsed.message,
+    };
+  } catch (error) {
+    console.log('Erro ao listar mensagens diretas:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function sendDirectMessage(
+  token: string,
+  conversationId: string,
+  input: {
+    body?: string;
+    client_message_id: string;
+    image_uris?: string[];
+    audio_uri?: string | null;
+  },
+): Promise<ApiResult<SupportMessage>> {
+  try {
+    const form = new FormData();
+    if (input.body?.trim()) form.append('body', input.body.trim());
+    form.append('client_message_id', input.client_message_id);
+    for (const uri of (input.image_uris || []).slice(0, 3)) {
+      if (!uri || /^https?:\/\//i.test(uri)) continue;
+      const rawName = uri.split('/').pop() || 'chat.jpg';
+      const name = rawName.replace(/\.\w+$/, '') + '.jpg';
+      form.append('attachments', {
+        uri,
+        name,
+        type: 'image/jpeg',
+      } as unknown as Blob);
+    }
+    if (input.audio_uri) {
+      const cleanUri = input.audio_uri.split('?')[0];
+      const extension = cleanUri.split('.').pop()?.toLowerCase();
+      const webm = extension === 'webm';
+      const threeGp = extension === '3gp';
+      form.append('attachments', {
+        uri: input.audio_uri,
+        name: `chat-audio.${webm ? 'webm' : threeGp ? '3gp' : 'm4a'}`,
+        type: webm ? 'audio/webm' : threeGp ? 'audio/3gpp' : 'audio/mp4',
+      } as unknown as Blob);
+    }
+    const response = await apiFetch(
+      `${API_URL}/api/me/direct/conversations/${encodeURIComponent(conversationId)}/messages`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      },
+    );
+    return parseAuthResponse<SupportMessage>(response);
+  } catch (error) {
+    console.log('Erro ao enviar mensagem direta:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function markDirectConversationRead(
+  token: string,
+  conversationId: string,
+): Promise<ApiResult<DirectConversation>> {
+  try {
+    const response = await apiFetch(
+      `${API_URL}/api/me/direct/conversations/${encodeURIComponent(conversationId)}/read`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao marcar conversa direta como lida:', error);
     return { success: false, message: 'Sem ligação ao servidor.' };
   }
 }

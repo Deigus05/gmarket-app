@@ -41,6 +41,7 @@ import {
   subscribeAccountScope,
 } from '@/lib/accountStorage';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
+import { parseCmsNavigationTarget } from '@/lib/navigation';
 import {
   getFavoriteProductIds,
   subscribeProductFavorites,
@@ -74,19 +75,6 @@ type SearchParams = {
   categoryId?: string;
   categoryName?: string;
 };
-
-function normalizeBannerUrl(raw: string) {
-  const value = raw.trim();
-  if (!value) return '';
-  if (
-    value.startsWith('/')
-    || /^https?:\/\//i.test(value)
-    || /^(mailto|tel|sms):/i.test(value)
-  ) {
-    return value;
-  }
-  return `https://${value}`;
-}
 
 function uniqueTerms(items: string[]) {
   const seen = new Set<string>();
@@ -357,19 +345,19 @@ export default function SearchScreen() {
   const onBannerPress = useCallback(
     async (banner: HomeBanner) => {
       trackEvent('CLICOU_ANUNCIO', banner.id, banner.title || 'Banner GMarket');
-      const url = normalizeBannerUrl(banner.link_url || '');
-      if (!url) return;
+      const target = parseCmsNavigationTarget(banner.link_url || '');
+      if (!target) return;
 
       try {
-        if (url.startsWith('/')) {
-          router.push(url as any);
+        if (target.kind === 'internal') {
+          router.push(target.href);
           return;
         }
-        if (/^(mailto|tel|sms):/i.test(url)) {
-          await Linking.openURL(url);
+        if (target.kind === 'native') {
+          await Linking.openURL(target.url);
           return;
         }
-        await WebBrowser.openBrowserAsync(url);
+        await WebBrowser.openBrowserAsync(target.url);
       } catch (error) {
         console.log('Erro ao abrir link do banner:', error);
       }

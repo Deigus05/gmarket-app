@@ -16,6 +16,7 @@ import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { resolvePostAuthHref } from '@/lib/navigation';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -36,46 +37,17 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  };
+
   const goAfterAuth = () => {
-    if (params.redirect === 'cart') {
-      router.replace('/(tabs)/cart');
-      return;
-    }
-    if (params.redirect === 'checkout') {
-      router.replace('/checkout');
-      return;
-    }
-    if (params.redirect === 'entrega') {
-      router.replace('/entrega');
-      return;
-    }
-    if (params.redirect === 'avaliacao') {
-      router.replace('/avaliacao');
-      return;
-    }
-    if (params.redirect === 'dados-pessoais') {
-      router.replace('/dados-pessoais');
-      return;
-    }
-    if (params.redirect === 'seguranca') {
-      router.replace('/seguranca');
-      return;
-    }
-    if (params.redirect === 'chat') {
-      router.replace('/chat');
-      return;
-    }
-    if (params.redirect === 'bilhete-dados') {
-      router.replace({
-        pathname: '/bilhete-dados',
-        params: {
-          eventId: params.eventId || '',
-          qty: params.qty || '1',
-        },
-      });
-      return;
-    }
-    router.replace('/(tabs)/profile');
+    const target = resolvePostAuthHref(params.redirect, {
+      eventId: params.eventId,
+      qty: params.qty || '1',
+    });
+    router.replace(target || '/(tabs)/profile');
   };
 
   const handleLogin = async () => {
@@ -113,7 +85,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
             <Ionicons name="arrow-back" size={22} color={ui.text} />
           </TouchableOpacity>
 
@@ -171,12 +143,16 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={styles.linkBtn}
-            onPress={() =>
+            onPress={() => {
+              const target = resolvePostAuthHref(params.redirect, {
+                eventId: params.eventId,
+                qty: params.qty || '1',
+              });
               router.push({
                 pathname: '/register',
-                params: params.redirect ? { redirect: params.redirect } : undefined,
-              })
-            }
+                params: target ? { redirect: String(target) } : undefined,
+              });
+            }}
           >
             <Text style={styles.linkText}>
               {t('login.noAccount')}{' '}

@@ -69,8 +69,12 @@ export default function LojaPerfilScreen() {
   const [search, setSearch] = useState('');
   const [localStoreRating, setLocalStoreRating] = useState<number | null>(null);
   const loadedStoreIdRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
+  const focusedRef = useRef(false);
 
-  const loadStoreData = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadStoreData = useCallback(async (generation: number, opts?: { silent?: boolean }) => {
+    const isCurrent = () => loadGenerationRef.current === generation;
+    if (!isCurrent()) return;
     if (!params.id) {
       setLoading(false);
       setProducts([]);
@@ -86,6 +90,7 @@ export default function LojaPerfilScreen() {
       getStoreById(storeId),
       getStoreProducts(storeId),
     ]);
+    if (!isCurrent()) return;
     setStore(storeData);
     setProducts(storeProducts);
     loadedStoreIdRef.current = storeId;
@@ -102,18 +107,31 @@ export default function LojaPerfilScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      focusedRef.current = true;
+      const generation = ++loadGenerationRef.current;
       const storeId = params.id ? String(params.id) : null;
       const silent = Boolean(storeId && loadedStoreIdRef.current === storeId);
-      loadStoreData({ silent });
+      void loadStoreData(generation, { silent });
       if (storeId) {
         void getStoreReviewByStoreId(storeId).then((local) => {
-          setLocalStoreRating(local?.rating ?? null);
+          if (loadGenerationRef.current === generation) {
+            setLocalStoreRating(local?.rating ?? null);
+          }
         });
       } else {
         setLocalStoreRating(null);
       }
+      return () => {
+        focusedRef.current = false;
+        loadGenerationRef.current += 1;
+      };
     }, [loadStoreData, params.id]),
   );
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  }, [router]);
 
   const storeName = store?.name || params.name || t('store.official');
   const coverUri = optimizedImageUrl(
@@ -188,7 +206,7 @@ export default function LojaPerfilScreen() {
             />
 
             <View style={[styles.navRow, { paddingTop: insets.top + 8 }]}>
-              <TouchableOpacity style={styles.navBtn} onPress={() => router.back()} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.navBtn} onPress={goBack} activeOpacity={0.85}>
                 <Ionicons name="arrow-back" size={20} color="#111" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.navBtn} activeOpacity={0.85}>
@@ -250,7 +268,9 @@ export default function LojaPerfilScreen() {
             <FollowStoreButton
               storeId={params.id ? String(params.id) : null}
               style={{ marginTop: 12 }}
-              onFollowersCountChange={setFollowersCount}
+              onFollowersCountChange={(count) => {
+                if (focusedRef.current) setFollowersCount(count);
+              }}
             />
           </View>
         </View>

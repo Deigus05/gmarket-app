@@ -25,6 +25,7 @@ type Props = {
   children?: React.ReactNode;
 };
 
+/** iOS / web — Android uses `TornadoOverlay.android.tsx` (no DOM WebView). */
 export default function TornadoOverlay({
   visible,
   prewarm = false,

@@ -47,7 +47,7 @@ export async function authenticateGPayAccess(options: {
 
     if (
       !result.success &&
-      result.error === 'missing_usage_description' &&
+      String(result.error) === 'missing_usage_description' &&
       preferBiometricsOnly
     ) {
       result = await LocalAuthentication.authenticateAsync({

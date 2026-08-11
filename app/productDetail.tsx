@@ -342,6 +342,16 @@ interface CartItem {
   storeVerified?: boolean;
 }
 
+function parseCartItems(raw: string | null): CartItem[] {
+  if (!raw) return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? (value as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function BuyNowButton({
   disabled,
   loading,
@@ -965,7 +975,7 @@ export default function ProductDetailScreen() {
     const max = selectedCombination.stock;
     const qty = Math.max(0, Math.min(nextQty, max));
     const existingCart = await getCartJson();
-    let cartList: CartItem[] = existingCart ? JSON.parse(existingCart) : [];
+    let cartList = parseCartItems(existingCart);
     const productIndex = findCartIndex(cartList);
 
     if (qty <= 0) {
@@ -1054,7 +1064,7 @@ export default function ProductDetailScreen() {
       }
       try {
         const existingCart = await getCartJson();
-        const cartList: CartItem[] = existingCart ? JSON.parse(existingCart) : [];
+        const cartList = parseCartItems(existingCart);
         const index = findCartIndex(cartList);
         setCartQuantity(index > -1 ? cartList[index].quantity : 0);
       } catch {

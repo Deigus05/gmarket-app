@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   RefreshControl,
@@ -83,25 +83,57 @@ export default function EventosScreen() {
   const [records, setRecords] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const focusedRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const hasLoadedRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
 
   const loadEvents = useCallback(async (opts?: { silent?: boolean }) => {
+    const generation = ++loadGenerationRef.current;
+    const isCurrent = () =>
+      focusedRef.current && loadGenerationRef.current === generation;
+    if (!isCurrent()) return false;
     if (!opts?.silent) setLoading(true);
     const apiEvents = await getEvents();
+    if (!isCurrent()) return false;
     const next = apiEvents.map(eventDtoToRecord);
     cacheEvents(next);
     setRecords(next);
     if (!opts?.silent) setLoading(false);
+    hasLoadedRef.current = true;
+    return true;
   }, []);
 
-  useEffect(() => {
-    void loadEvents();
-  }, [loadEvents]);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      refreshInFlightRef.current = false;
+      setRefreshing(false);
+      if (!hasLoadedRef.current) void loadEvents();
+      return () => {
+        focusedRef.current = false;
+        loadGenerationRef.current += 1;
+        refreshInFlightRef.current = false;
+      };
+    }, [loadEvents]),
+  );
 
   const onRefresh = useCallback(async () => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     setRefreshing(true);
-    await loadEvents({ silent: true });
-    setRefreshing(false);
+    try {
+      const applied = await loadEvents({ silent: true });
+      if (applied && focusedRef.current) setRefreshing(false);
+    } finally {
+      refreshInFlightRef.current = false;
+    }
   }, [loadEvents]);
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  }, [router]);
 
   const featured = useMemo(() => recordsToFeatured(records), [records]);
   const events = useMemo(() => {
@@ -161,7 +193,7 @@ export default function EventosScreen() {
       >
         <View style={{ paddingTop: insets.top + 8 }}>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.75}>
+            <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.75}>
               <Ionicons name="arrow-back" size={22} color={theme.icon} />
             </TouchableOpacity>
             <View style={styles.headerTitleWrap}>

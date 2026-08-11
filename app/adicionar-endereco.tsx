@@ -20,6 +20,7 @@ import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { resolvePostAuthHref } from '@/lib/navigation';
 
 const { height } = Dimensions.get('window');
 
@@ -137,15 +138,7 @@ export default function AdicionarEnderecoScreen() {
   };
 
   const finishFlow = () => {
-    if (params.redirect === 'cart') {
-      router.replace('/(tabs)/cart');
-      return;
-    }
-    if (params.redirect === 'checkout') {
-      router.replace('/checkout');
-      return;
-    }
-    router.replace('/(tabs)/profile');
+    router.replace(resolvePostAuthHref(params.redirect) || '/(tabs)/profile');
   };
 
   const handleSalvar = async () => {

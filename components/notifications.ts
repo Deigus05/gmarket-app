@@ -137,22 +137,30 @@ export async function isRemotePushActive(): Promise<boolean> {
 }
 
 /** Mensagens de suporte ficam só no chat — nunca na inbox/sininho. */
-export function isSupportNotification(
+export function isChatNotification(
   item: Pick<AppNotification, 'type'> | { type?: unknown; data?: Record<string, unknown> | null } | null | undefined,
 ): boolean {
   if (!item || typeof item !== 'object') return false;
   const type = typeof item.type === 'string' ? item.type : null;
-  if (type === 'support_message') return true;
+  if (type === 'support_message' || type === 'direct_message') return true;
   const data = 'data' in item && item.data && typeof item.data === 'object' ? item.data : null;
   if (!data) return false;
   const screen = typeof data.screen === 'string' ? data.screen : null;
   const dataType = typeof data.type === 'string' ? data.type : null;
   return (
     dataType === 'support_message'
+    || dataType === 'direct_message'
     || screen === 'chat'
-    || typeof data.conversationId === 'string'
-    || typeof data.conversation_id === 'string'
+    || screen === 'support'
+    || screen === 'direct_chat'
   );
+}
+
+/** @deprecated use isChatNotification */
+export function isSupportNotification(
+  item: Pick<AppNotification, 'type'> | { type?: unknown; data?: Record<string, unknown> | null } | null | undefined,
+): boolean {
+  return isChatNotification(item);
 }
 
 export async function presentLocalNotification(item: AppNotification) {
@@ -163,7 +171,11 @@ export async function presentLocalNotification(item: AppNotification) {
       body: item.body,
       data: {
         type: item.type,
-        screen: item.type === 'support_message' ? 'chat' : undefined,
+        screen: item.type === 'support_message'
+          ? 'support'
+          : item.type === 'direct_message'
+            ? 'direct_chat'
+            : undefined,
         ...(item.data || {}),
       },
       sound: 'default',
@@ -266,6 +278,8 @@ export type NotificationRouteTarget =
   | { pathname: '/entrega'; params: { orderId: string } }
   | { pathname: '/loja'; params: { id: string } }
   | { pathname: '/chat'; params?: undefined }
+  | { pathname: '/chat/support'; params?: undefined }
+  | { pathname: `/chat/direct/${string}`; params?: undefined }
   | { pathname: '/(tabs)'; params?: undefined }
   | null;
 
@@ -277,9 +291,23 @@ export function resolveNotificationRoute(data: Record<string, unknown> | undefin
   const storeId = typeof data.storeId === 'string' ? data.storeId : null;
   const screen = typeof data.screen === 'string' ? data.screen : null;
   const type = typeof data.type === 'string' ? data.type : null;
+  const conversationId = typeof data.conversationId === 'string'
+    ? data.conversationId
+    : typeof data.conversation_id === 'string'
+      ? data.conversation_id
+      : null;
 
-  if (isSupportNotification({ type, data }) || type === 'support_message' || screen === 'chat') {
+  if (type === 'direct_message' || screen === 'direct_chat') {
+    if (conversationId) return { pathname: `/chat/direct/${conversationId}` };
     return { pathname: '/chat' };
+  }
+  if (
+    isChatNotification({ type, data })
+    || type === 'support_message'
+    || screen === 'chat'
+    || screen === 'support'
+  ) {
+    return { pathname: '/chat/support' };
   }
   if (productId || screen === 'productDetail') {
     if (productId) return { pathname: '/productDetail', params: { id: productId } };

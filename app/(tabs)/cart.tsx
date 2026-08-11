@@ -320,7 +320,9 @@ export default function CartScreen() {
             return;
           }
 
-          const parsed: CartItem[] = JSON.parse(storedCart);
+          const parsedValue: unknown = JSON.parse(storedCart);
+          if (!Array.isArray(parsedValue)) throw new Error('Carrinho local inválido');
+          const parsed = parsedValue as CartItem[];
           setCartItems(parsed);
           hasLoadedRef.current = true;
           if (active) setLoading(false);
@@ -336,6 +338,7 @@ export default function CartScreen() {
           }
         } catch (error) {
           console.log('Erro ao carregar carrinho local:', error);
+          await setCartJson('[]');
           if (active) setCartItems([]);
         } finally {
           if (active) {

@@ -1,7 +1,8 @@
+import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Clipboard, Platform } from 'react-native';
+import { Alert, InteractionManager } from 'react-native';
 
 import { useAuth } from '@/components/AuthContext';
 import PromoInterstitialModal from '@/components/PromoInterstitialModal';
@@ -84,11 +85,7 @@ async function markSeen(id: string) {
 
 async function copyText(code: string) {
   try {
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(code);
-    } else {
-      Clipboard.setString(code);
-    }
+    await Clipboard.setStringAsync(code);
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -113,10 +110,34 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
   const { token, loading: authLoading } = useAuth();
   const router = useRouter();
   const startedRef = useRef(false);
+  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const interactionRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(
+    null,
+  );
+  const navigationPendingRef = useRef(false);
 
   const [queue, setQueue] = useState<PromoInterstitial[]>([]);
   const [current, setCurrent] = useState<PromoInterstitial | null>(null);
   const [visible, setVisible] = useState(false);
+
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    const timer = setTimeout(() => {
+      timersRef.current.delete(timer);
+      callback();
+    }, delay);
+    timersRef.current.add(timer);
+    return timer;
+  }, []);
+
+  useEffect(
+    () => () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current.clear();
+      interactionRef.current?.cancel();
+      interactionRef.current = null;
+    },
+    [],
+  );
 
   const advance = useCallback((rest: PromoInterstitial[]) => {
     if (!rest.length) {
@@ -138,61 +159,72 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
 
     let cancelled = false;
 
-    (async () => {
-      // Pequeno atraso para a home pintar antes do overlay
-      await new Promise((r) => setTimeout(r, 450));
-      if (cancelled) return;
+    // Pequeno atraso para a home pintar antes do overlay
+    const startupTimer = schedule(() => {
+      void (async () => {
+        if (cancelled) return;
 
-      const payload = await getPromoInterstitials(token);
-      const seen = await readSeenMap();
-      if (cancelled) return;
+        const payload = await getPromoInterstitials(token);
+        const seen = await readSeenMap();
+        if (cancelled) return;
 
-      const candidates: PromoInterstitial[] = [];
-      if (
-        payload.fullscreen
-        && shouldShowByFrequency(
-          payload.fullscreen.id,
-          payload.fullscreen.frequency || 'once_per_day',
-          seen,
-        )
-      ) {
-        candidates.push(payload.fullscreen);
-      }
-      if (
-        payload.sheet
-        && shouldShowByFrequency(
-          payload.sheet.id,
-          payload.sheet.frequency || 'once_per_day',
-          seen,
-        )
-      ) {
-        candidates.push(payload.sheet);
-      }
+        const candidates: PromoInterstitial[] = [];
+        if (
+          payload.fullscreen
+          && shouldShowByFrequency(
+            payload.fullscreen.id,
+            payload.fullscreen.frequency || 'once_per_day',
+            seen,
+          )
+        ) {
+          candidates.push(payload.fullscreen);
+        }
+        if (
+          payload.sheet
+          && shouldShowByFrequency(
+            payload.sheet.id,
+            payload.sheet.frequency || 'once_per_day',
+            seen,
+          )
+        ) {
+          candidates.push(payload.sheet);
+        }
 
-      if (!candidates.length) return;
-      advance(candidates);
-    })();
+        if (!candidates.length) return;
+        advance(candidates);
+      })();
+    }, 450);
 
     return () => {
       cancelled = true;
+      clearTimeout(startupTimer);
+      timersRef.current.delete(startupTimer);
     };
-  }, [enabled, authLoading, token, advance]);
+  }, [enabled, authLoading, token, advance, schedule]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
     const rest = queue;
     // Pausa breve entre fullscreen e gaveta
-    setTimeout(() => advance(rest), rest.length ? 280 : 40);
-  }, [advance, queue]);
+    schedule(() => advance(rest), rest.length ? 280 : 40);
+  }, [advance, queue, schedule]);
 
   const handleGoToProduct = useCallback(
     (productId: string) => {
+      if (!productId || navigationPendingRef.current) return;
+      navigationPendingRef.current = true;
       setVisible(false);
       setCurrent(null);
       setQueue([]);
-      router.push({ pathname: '/productDetail', params: { id: productId } });
+      schedule(() => {
+        interactionRef.current = InteractionManager.runAfterInteractions(() => {
+          interactionRef.current = null;
+          navigationPendingRef.current = false;
+          router.push({ pathname: '/productDetail', params: { id: productId } });
+        });
+      }, 0);
     },
-    [router],
+    [router, schedule],
   );
 
   const handleCopyPromo = useCallback(async (code: string) => {

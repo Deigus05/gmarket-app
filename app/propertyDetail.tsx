@@ -131,7 +131,11 @@ export default function PropertyDetailScreen() {
   };
 
   const callPhone = () => {
-    if (property?.phone) Linking.openURL(`tel:${property.phone}`);
+    if (property?.phone) {
+      void Linking.openURL(`tel:${property.phone}`).catch((error) => {
+        console.log('Erro ao abrir telefone:', error);
+      });
+    }
   };
 
   const openWhatsApp = (prefill?: string) => {
@@ -140,7 +144,9 @@ export default function PropertyDetailScreen() {
     const text = encodeURIComponent(
       prefill || t('propertyDetail.waInterest', { title: property?.title }),
     );
-    Linking.openURL(`https://wa.me/${number}?text=${text}`);
+    void Linking.openURL(`https://wa.me/${number}?text=${text}`).catch((error) => {
+      console.log('Erro ao abrir WhatsApp:', error);
+    });
   };
 
   const openRoute = () => {
@@ -271,7 +277,11 @@ export default function PropertyDetailScreen() {
               {!!property.video_urls?.[0] && (
                 <TouchableOpacity
                   style={styles.mediaChip}
-                  onPress={() => Linking.openURL(property.video_urls![0])}
+                  onPress={() => {
+                    void Linking.openURL(property.video_urls![0]).catch((error) => {
+                      console.log('Erro ao abrir vídeo:', error);
+                    });
+                  }}
                 >
                   <Ionicons name="play-circle-outline" size={16} color={ui.brand} />
                   <Text style={styles.mediaChipText}>{t('propertyDetail.watchVideo')}</Text>

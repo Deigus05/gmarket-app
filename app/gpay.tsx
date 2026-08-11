@@ -137,8 +137,44 @@ export default function GPayScreen() {
   const authenticatingRef = useRef(false);
   const unlockCancelledRef = useRef(false);
   const unlockWithFaceIdRef = useRef<() => Promise<void>>(async () => {});
+  const mountedRef = useRef(true);
+  const focusedRef = useRef(false);
+  const walletGenerationRef = useRef(0);
+  const authGenerationRef = useRef(0);
+  const refreshInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      focusedRef.current = false;
+      walletGenerationRef.current += 1;
+      authGenerationRef.current += 1;
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      refreshInFlightRef.current = false;
+      setRefreshing(false);
+      return () => {
+        focusedRef.current = false;
+        walletGenerationRef.current += 1;
+        authGenerationRef.current += 1;
+        refreshInFlightRef.current = false;
+      };
+    }, []),
+  );
 
   const loadWallet = useCallback(async () => {
+    const generation = ++walletGenerationRef.current;
+    const isCurrent = () =>
+      mountedRef.current &&
+      focusedRef.current &&
+      walletGenerationRef.current === generation;
+
+    if (!isCurrent()) return false;
     if (!token || !isLoggedIn) {
       setBalance(0);
       setCashbackTotal(0);
@@ -146,11 +182,12 @@ export default function GPayScreen() {
       setError(null);
       setLoading(false);
       hasLoadedRef.current = true;
-      return;
+      return true;
     }
 
     setError(null);
     const result = await getGcoinWallet(token);
+    if (!isCurrent()) return false;
     if (!result.success) {
       setError(result.message || t('gpay.loadError'));
       setBalance(0);
@@ -158,7 +195,7 @@ export default function GPayScreen() {
       setTransactions([]);
       setLoading(false);
       hasLoadedRef.current = true;
-      return;
+      return true;
     }
 
     setBalance(result.data.balance);
@@ -166,10 +203,23 @@ export default function GPayScreen() {
     setTransactions(result.data.transactions || []);
     setLoading(false);
     hasLoadedRef.current = true;
+    return true;
   }, [token, isLoggedIn, t]);
 
   const unlockWithFaceId = useCallback(async () => {
-    if (!requiresFaceId || authenticatingRef.current) return;
+    if (
+      !requiresFaceId ||
+      authenticatingRef.current ||
+      !mountedRef.current ||
+      !focusedRef.current
+    ) {
+      return;
+    }
+    const generation = ++authGenerationRef.current;
+    const isCurrent = () =>
+      mountedRef.current &&
+      focusedRef.current &&
+      authGenerationRef.current === generation;
     authenticatingRef.current = true;
     setAuthBusy(true);
     setAuthError(null);
@@ -179,7 +229,7 @@ export default function GPayScreen() {
         cancelLabel: t('gpay.faceIdCancel'),
         fallbackLabel: t('gpay.faceIdFallback'),
       });
-      if (unlockCancelledRef.current) return;
+      if (unlockCancelledRef.current || !isCurrent()) return;
       if (result.success) {
         setUnlocked(true);
         return;
@@ -195,8 +245,10 @@ export default function GPayScreen() {
       }
       setUnlocked(false);
     } finally {
-      authenticatingRef.current = false;
-      if (!unlockCancelledRef.current) setAuthBusy(false);
+      if (isCurrent()) {
+        authenticatingRef.current = false;
+        if (!unlockCancelledRef.current) setAuthBusy(false);
+      }
     }
   }, [requiresFaceId, t]);
 
@@ -223,6 +275,7 @@ export default function GPayScreen() {
 
       return () => {
         unlockCancelledRef.current = true;
+        authGenerationRef.current += 1;
         authenticatingRef.current = false;
         interaction.cancel?.();
         if (timer) clearTimeout(timer);
@@ -241,10 +294,21 @@ export default function GPayScreen() {
   );
 
   const onRefresh = async () => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     setRefreshing(true);
-    await loadWallet();
-    setRefreshing(false);
+    try {
+      const applied = await loadWallet();
+      if (applied && mountedRef.current && focusedRef.current) setRefreshing(false);
+    } finally {
+      refreshInFlightRef.current = false;
+    }
   };
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  }, [router]);
 
   const heroColors = isDark
     ? (['#1E4F96', '#0B3A7A', '#061F45'] as const)
@@ -257,7 +321,7 @@ export default function GPayScreen() {
       <View style={styles.root}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-          <Pressable style={styles.headerBtn} onPress={() => router.back()}>
+          <Pressable style={styles.headerBtn} onPress={goBack}>
             <Ionicons name="arrow-back" size={20} color={ui.brand} />
           </Pressable>
           <Text style={styles.brandTitle}>GPay</Text>
@@ -288,7 +352,7 @@ export default function GPayScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable style={styles.headerBtn} onPress={() => router.back()}>
+        <Pressable style={styles.headerBtn} onPress={goBack}>
           <Ionicons name="arrow-back" size={20} color={ui.brand} />
         </Pressable>
         <Text style={styles.brandTitle}>GPay</Text>

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -49,7 +49,8 @@ export default function AnunciarImovelScreen() {
   const { t } = useLocale();
   const { ui } = useAppTheme();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const { isLoggedIn, token, user } = useAuth();
+  const { isLoggedIn, token, user, loading: authLoading } = useAuth();
+  const loginRequestedRef = useRef(false);
 
   const steps = useMemo(
     () => [
@@ -114,10 +115,15 @@ export default function AnunciarImovelScreen() {
   }, [regions, region]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      router.replace({ pathname: '/login', params: { redirect: '/anunciar-imovel' } });
+    if (authLoading) return;
+    if (isLoggedIn) {
+      loginRequestedRef.current = false;
+      return;
     }
-  }, [isLoggedIn, router]);
+    if (loginRequestedRef.current) return;
+    loginRequestedRef.current = true;
+    router.push({ pathname: '/login', params: { redirect: '/anunciar-imovel' } });
+  }, [authLoading, isLoggedIn, router]);
 
   useEffect(() => {
     async function boot() {
@@ -273,7 +279,10 @@ export default function AnunciarImovelScreen() {
 
   const publish = async () => {
     if (!token) {
-      router.push({ pathname: '/login', params: { redirect: '/anunciar-imovel' } });
+      if (!loginRequestedRef.current) {
+        loginRequestedRef.current = true;
+        router.push({ pathname: '/login', params: { redirect: '/anunciar-imovel' } });
+      }
       return;
     }
     setSubmitting(true);

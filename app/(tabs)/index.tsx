@@ -1,5 +1,6 @@
 // app/(tabs)/index.tsx
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -66,6 +67,7 @@ import {
 } from '@/lib/accountStorage';
 import { getCartJson, setCartJson } from '@/lib/cartStorage';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
+import { parseCmsNavigationTarget } from '@/lib/navigation';
 import {
     announceNewlyConfirmedTickets,
     getLocalTickets,
@@ -86,6 +88,7 @@ import {
     getLiveProducts,
     getMyOrders,
     getMyTickets,
+    getDirectConversations,
     getMyNotifications,
     getSupportConversation,
     syncCartToServer,
@@ -153,7 +156,9 @@ async function readCartQtyByProductId(): Promise<Record<string, number>> {
   try {
     const raw = await getCartJson();
     if (!raw) return {};
-    const cart = JSON.parse(raw) as HomeCartItem[];
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) throw new Error('Carrinho local inválido');
+    const cart = value as HomeCartItem[];
     const map: Record<string, number> = {};
     for (const item of cart) {
       const pid = productIdFromCartItem(item);
@@ -164,19 +169,6 @@ async function readCartQtyByProductId(): Promise<Record<string, number>> {
   } catch {
     return {};
   }
-}
-
-function normalizeBannerUrl(raw: string) {
-  const value = raw.trim();
-  if (!value) return '';
-  if (
-    value.startsWith('/')
-    || /^https?:\/\//i.test(value)
-    || /^(mailto|tel|sms):/i.test(value)
-  ) {
-    return value;
-  }
-  return `https://${value}`;
 }
 
 function bannersSignature(group: HomeBannersGrouped) {
@@ -896,6 +888,13 @@ export default function HomeScreen() {
   const { t } = useLocale();
   const styles = useMemo(() => createHomeStyles(colors, isDark), [colors, isDark]);
   const [homeFocused, setHomeFocused] = useState(true);
+  const homeFocusedRef = useRef(true);
+  const homeScopeGenerationRef = useRef(0);
+  const isHomeScopeActive = useCallback(
+    (generation: number) =>
+      homeFocusedRef.current && generation === homeScopeGenerationRef.current,
+    [],
+  );
   const {
     running: magicRunning,
     buttonVisible: magicButtonVisible,
@@ -940,12 +939,18 @@ export default function HomeScreen() {
 
   // Troca de conta: limpa UI sensível imediatamente (evita flash da conta anterior).
   useEffect(() => {
+    let active = true;
     setMyTickets([]);
     setUnreadNotifications(0);
     setChatUnread(0);
     setActiveDeliveries(0);
     setFavorites([]);
-    void readCartQtyByProductId().then(setCartQtyById);
+    void readCartQtyByProductId().then((next) => {
+      if (active) setCartQtyById(next);
+    });
+    return () => {
+      active = false;
+    };
   }, [user?.id]);
 
   useEffect(() => {
@@ -1000,11 +1005,14 @@ export default function HomeScreen() {
   }, []);
 
   const loadHomeData = useCallback(async (forceRefresh = false) => {
+    const generation = homeScopeGenerationRef.current;
     let cartProductIds: string[] = [];
     try {
       const rawCart = await getCartJson();
       if (rawCart) {
-        const parsed = JSON.parse(rawCart) as Array<{ productId?: string; id?: string }>;
+        const value: unknown = JSON.parse(rawCart);
+        if (!Array.isArray(value)) throw new Error('Carrinho local inválido');
+        const parsed = value as Array<{ productId?: string; id?: string }>;
         cartProductIds = [
           ...new Set(
             parsed
@@ -1034,6 +1042,7 @@ export default function HomeScreen() {
           ...cacheOpts,
         }),
       ]);
+      if (!isHomeScopeActive(generation)) return;
 
       // Só atualiza estado se o conteúdo mudou — evita tremor a cada poll
       const nextProductsSig = productIdsSignature(productData);
@@ -1066,24 +1075,26 @@ export default function HomeScreen() {
       );
     } catch (error) {
       console.log('Erro ao carregar home:', error);
-      setHomeError(t('home.offlineCache'));
+      if (isHomeScopeActive(generation)) setHomeError(t('home.offlineCache'));
     } finally {
-      setHomeLoading(false);
+      if (isHomeScopeActive(generation)) setHomeLoading(false);
     }
-  }, [enderecoAtual, t, token]);
+  }, [enderecoAtual, isHomeScopeActive, t, token]);
 
   const loadActiveDeliveries = useCallback(async () => {
+    const generation = homeScopeGenerationRef.current;
     if (!isLoggedIn || !token) {
       setActiveDeliveries(0);
       return;
     }
     const result = await getMyOrders(token, 'active');
-    if (result.success) {
+    if (result.success && isHomeScopeActive(generation)) {
       setActiveDeliveries(result.data.length);
     }
-  }, [isLoggedIn, token]);
+  }, [isHomeScopeActive, isLoggedIn, token]);
 
   const loadMyTickets = useCallback(async () => {
+    const generation = homeScopeGenerationRef.current;
     if (!isLoggedIn || !token) {
       setMyTickets([]);
       setTicketsLoading(false);
@@ -1092,6 +1103,7 @@ export default function HomeScreen() {
 
     // Nunca mostrar cache de outra conta: só o scope da conta ativa.
     const cached = await getLocalTickets();
+    if (!isHomeScopeActive(generation)) return;
     if (cached.length) {
       setMyTickets(cached);
       setTicketsLoading(false);
@@ -1101,9 +1113,12 @@ export default function HomeScreen() {
     }
 
     await syncLocalTicketsToServer(token);
+    if (!isHomeScopeActive(generation)) return;
     const remote = await getMyTickets(token);
+    if (!isHomeScopeActive(generation)) return;
     if (remote === null) {
       const offline = await getLocalTickets();
+      if (!isHomeScopeActive(generation)) return;
       setMyTickets(offline);
       setTicketsLoading(false);
       return;
@@ -1111,52 +1126,86 @@ export default function HomeScreen() {
 
     const previous = cached.length ? cached : await getLocalTickets();
     const tickets = await mergeTicketsWithLocal(remote);
+    if (!isHomeScopeActive(generation)) return;
     void announceNewlyConfirmedTickets(previous, tickets);
     setMyTickets(tickets);
     setTicketsLoading(false);
-  }, [isLoggedIn, token]);
+  }, [isHomeScopeActive, isLoggedIn, token]);
 
   const loadUnreadNotifications = useCallback(async () => {
+    const generation = homeScopeGenerationRef.current;
     if (!isLoggedIn || !token) {
       setUnreadNotifications(0);
       return;
     }
     // Conta só a inbox — mensagens de suporte ficam no badge do chat.
     const result = await getMyNotifications(token, 50);
-    if (result.success) {
+    if (result.success && isHomeScopeActive(generation)) {
       const count = result.data.filter(
         (item) => !item.read_at && item.type !== 'support_message',
       ).length;
       setUnreadNotifications(count);
     }
-  }, [isLoggedIn, token]);
+  }, [isHomeScopeActive, isLoggedIn, token]);
 
   const loadChatUnread = useCallback(async () => {
+    const generation = homeScopeGenerationRef.current;
     if (!isLoggedIn || !token) {
       setChatUnread(0);
       return;
     }
-    const result = await getSupportConversation(token);
-    if (result.success) {
-      setChatUnread(supportUnreadFromConversation(result.data));
+    const [supportResult, directResult] = await Promise.all([
+      getSupportConversation(token),
+      getDirectConversations(token),
+    ]);
+    if (!isHomeScopeActive(generation)) return;
+    const supportUnread = supportResult.success
+      ? supportUnreadFromConversation(supportResult.data)
+      : 0;
+    const directUnread = directResult.success
+      ? (directResult.data.conversations || []).reduce(
+        (sum, item) => sum + Math.max(0, Number(item.unread_count || 0)),
+        0,
+      )
+      : 0;
+    if (supportResult.success || directResult.success) {
+      setChatUnread(supportUnread + directUnread);
       return;
     }
-    // Fallback: conta alertas de suporte ainda não lidos na inbox.
+    // Fallback: conta alertas de chat ainda não lidos na inbox.
     const inbox = await getMyNotifications(token, 50);
-    if (inbox.success) {
+    if (inbox.success && isHomeScopeActive(generation)) {
       const count = inbox.data.filter(
-        (item) => !item.read_at && item.type === 'support_message',
+        (item) =>
+          !item.read_at
+          && (item.type === 'support_message' || item.type === 'direct_message'),
       ).length;
       setChatUnread(count);
     }
-  }, [isLoggedIn, token]);
+  }, [isHomeScopeActive, isLoggedIn, token]);
 
   useEffect(() => {
-    trackAppAccess('iphone-sana-camara', 'iOS');
+    void (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('@gmarket:presence_device_id');
+        const deviceId =
+          stored
+          || `gm-${Platform.OS}-home-${Date.now().toString(36)}`;
+        await trackAppAccess(
+          deviceId,
+          Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'Web',
+        );
+      } catch {
+        // analytics best-effort
+      }
+    })();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
+      homeScopeGenerationRef.current += 1;
+      const generation = homeScopeGenerationRef.current;
+      homeFocusedRef.current = true;
       setHomeFocused(true);
       loadHomeData(false);
       loadActiveDeliveries();
@@ -1164,8 +1213,12 @@ export default function HomeScreen() {
       void loadChatUnread();
 
       void loadMyTickets();
-      void getFavoriteProductIds().then(setFavorites);
-      void readCartQtyByProductId().then(setCartQtyById);
+      void getFavoriteProductIds().then((next) => {
+        if (isHomeScopeActive(generation)) setFavorites(next);
+      });
+      void readCartQtyByProductId().then((next) => {
+        if (isHomeScopeActive(generation)) setCartQtyById(next);
+      });
       // Cache local evita rede a cada ciclo; 2 min basta para dados frescos sem gastar MB
       const refreshInterval = setInterval(() => {
         loadHomeData(false);
@@ -1176,6 +1229,8 @@ export default function HomeScreen() {
       }, 120000);
 
       return () => {
+        homeFocusedRef.current = false;
+        homeScopeGenerationRef.current += 1;
         setHomeFocused(false);
         clearInterval(refreshInterval);
       };
@@ -1185,27 +1240,40 @@ export default function HomeScreen() {
       loadHomeData,
       loadMyTickets,
       loadUnreadNotifications,
+      isHomeScopeActive,
     ]),
   );
 
   // Badge do chat em tempo real enquanto a home está focada.
   useEffect(() => {
     if (!token || !isLoggedIn || !homeFocused) return;
-    const session = connectChatSocket({
+    const supportSession = connectChatSocket({
       token,
+      channel: 'support',
       onMessage: (message) => {
         const fromSupport =
           (message.sender_type || message.sender) !== 'customer';
-        if (fromSupport) {
-          setChatUnread((count) => count + 1);
-        }
+        if (fromSupport) void loadChatUnread();
       },
-      onConversation: (conversation) => {
-        setChatUnread(supportUnreadFromConversation(conversation));
+      onConversation: () => {
+        void loadChatUnread();
       },
     });
-    return session.teardown;
-  }, [homeFocused, isLoggedIn, token]);
+    const directSession = connectChatSocket({
+      token,
+      channel: 'direct',
+      onMessage: () => {
+        void loadChatUnread();
+      },
+      onConversation: () => {
+        void loadChatUnread();
+      },
+    });
+    return () => {
+      supportSession.teardown();
+      directSession.teardown();
+    };
+  }, [homeFocused, isLoggedIn, loadChatUnread, token]);
 
   useEffect(() => {
     return subscribeProductFavorites((products) => {
@@ -1240,19 +1308,19 @@ export default function HomeScreen() {
 
   const onBannerPress = useCallback(async (banner: HomeBanner) => {
     trackEvent('CLICOU_ANUNCIO', banner.id, banner.title || 'Banner GMarket');
-    const url = normalizeBannerUrl(banner.link_url || '');
-    if (!url) return;
+    const target = parseCmsNavigationTarget(banner.link_url || '');
+    if (!target) return;
 
     try {
-      if (url.startsWith('/')) {
-        router.push(url as any);
+      if (target.kind === 'internal') {
+        router.push(target.href);
         return;
       }
-      if (/^(mailto|tel|sms):/i.test(url)) {
-        await Linking.openURL(url);
+      if (target.kind === 'native') {
+        await Linking.openURL(target.url);
         return;
       }
-      await WebBrowser.openBrowserAsync(url);
+      await WebBrowser.openBrowserAsync(target.url);
     } catch (error) {
       console.log('Erro ao abrir link do banner:', error);
     }
@@ -1290,7 +1358,9 @@ export default function HomeScreen() {
 
     try {
       const raw = await getCartJson();
-      let cartList: HomeCartItem[] = raw ? JSON.parse(raw) : [];
+      const value: unknown = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(value)) throw new Error('Carrinho local inválido');
+      let cartList = value as HomeCartItem[];
       const alreadyInCart = cartList.some(
         (item) => productIdFromCartItem(item) === product.id,
       );
@@ -1358,6 +1428,7 @@ export default function HomeScreen() {
   });
 
   const startMagicAndScroll = useCallback(() => {
+    if (Platform.OS === 'android') return;
     homeScrollRef.current?.scrollToOffset({ offset: 0, animated: false });
     requestAnimationFrame(() => {
       void (async () => {

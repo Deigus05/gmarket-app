@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -26,6 +26,7 @@ import { resolveEventDto } from '@/components/eventos/eventsData';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme } from '@/components/tema';
 import { saveLocalTicket } from '@/lib/localTickets';
+import { createReturnPath } from '@/lib/navigation';
 import { notifyAdminOfSale } from '@/lib/saleNotify';
 import { openWhatsAppTo, getSupportWhatsApp, getTransferPhone } from '@/lib/support';
 
@@ -61,7 +62,8 @@ export default function BilhetePagamentoScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { isDark } = useAppTheme();
-  const { token, isLoggedIn, user } = useAuth();
+  const { token, isLoggedIn, user, loading: authLoading } = useAuth();
+  const loginRequestedRef = useRef(false);
   const params = useLocalSearchParams<{
     eventId?: string;
     qty?: string;
@@ -113,10 +115,35 @@ export default function BilhetePagamentoScreen() {
   );
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      router.replace('/login');
+    if (authLoading) return;
+    if (isLoggedIn) {
+      loginRequestedRef.current = false;
+      return;
     }
-  }, [isLoggedIn, router]);
+    if (loginRequestedRef.current) return;
+    loginRequestedRef.current = true;
+    router.push({
+      pathname: '/login',
+      params: {
+        redirect: createReturnPath('/bilhete-pagamento', {
+          eventId,
+          qty,
+          buyerNome: param(params.buyerNome),
+          buyerTelefone: param(params.buyerTelefone),
+          buyerGenero: param(params.buyerGenero),
+        }),
+      },
+    });
+  }, [
+    authLoading,
+    eventId,
+    isLoggedIn,
+    params.buyerGenero,
+    params.buyerNome,
+    params.buyerTelefone,
+    qty,
+    router,
+  ]);
 
   useEffect(() => {
     let active = true;

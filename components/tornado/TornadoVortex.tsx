@@ -30,13 +30,13 @@ const DEFAULTS = {
   speed: 10,
   direction: 'right' as 'right' | 'left',
   lineOptions: {
-    count: 240,
+    count: 120,
     color: '#ffffff',
     glow: 10,
   },
   dots: true,
   dotOptions: {
-    count: 8000,
+    count: 2200,
     size: 20,
     color: '#ffffff',
     glow: 10,

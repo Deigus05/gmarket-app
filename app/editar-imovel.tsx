@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -18,6 +18,7 @@ import { useAuth } from '@/components/AuthContext';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { propertyPriceFieldLabel } from '@/constants/propertyDisplay';
+import { createReturnPath } from '@/lib/navigation';
 
 const STATUS_KEYS: PropertyStatus[] = ['disponivel', 'reservado', 'vendido', 'arrendado'];
 
@@ -29,7 +30,8 @@ export default function EditarImovelScreen() {
   const styles = useMemo(() => createStyles(ui), [ui]);
   const params = useLocalSearchParams();
   const propertyId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const { token, isLoggedIn } = useAuth();
+  const { token, isLoggedIn, loading: authLoading } = useAuth();
+  const loginRequestedRef = useRef(false);
 
   const statuses = useMemo(
     () =>
@@ -64,10 +66,18 @@ export default function EditarImovelScreen() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      router.replace({ pathname: '/login', params: { redirect: `/editar-imovel?id=${propertyId || ''}` } });
+    if (authLoading) return;
+    if (isLoggedIn) {
+      loginRequestedRef.current = false;
+      return;
     }
-  }, [isLoggedIn, propertyId, router]);
+    if (loginRequestedRef.current) return;
+    loginRequestedRef.current = true;
+    router.push({
+      pathname: '/login',
+      params: { redirect: createReturnPath('/editar-imovel', { id: propertyId }) },
+    });
+  }, [authLoading, isLoggedIn, propertyId, router]);
 
   useEffect(() => {
     async function boot() {

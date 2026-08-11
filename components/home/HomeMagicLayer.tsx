@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -43,6 +44,7 @@ export type HomeMagicController = {
 };
 
 export function useHomeMagic({ enabled }: UseHomeMagicArgs): HomeMagicController {
+  const supported = Platform.OS !== 'android' && Platform.OS !== 'web';
   const [buttonVisible, setButtonVisible] = useState(false);
   const [running, setRunning] = useState(false);
   const [tornadoVisible, setTornadoVisible] = useState(false);
@@ -76,17 +78,17 @@ export function useHomeMagic({ enabled }: UseHomeMagicArgs): HomeMagicController
   }, [clearButtonTimer]);
 
   const revealButton = useCallback(() => {
-    if (runningRef.current) return;
+    if (!supported || runningRef.current) return;
     setButtonVisible(true);
     clearButtonTimer();
     buttonTimer.current = setTimeout(() => {
       setButtonVisible(false);
     }, BUTTON_TTL_MS);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [clearButtonTimer]);
+  }, [clearButtonTimer, supported]);
 
   const startMagic = useCallback(() => {
-    if (runningRef.current) return;
+    if (!supported || runningRef.current) return;
     runningRef.current = true;
     clearButtonTimer();
     clearRunTimers();
@@ -122,19 +124,21 @@ export function useHomeMagic({ enabled }: UseHomeMagicArgs): HomeMagicController
       setTornadoVisible(false);
       setRunning(false);
     }, MAGIC_DURATION_MS);
-  }, [clearButtonTimer, clearRunTimers, suckProgress]);
+  }, [clearButtonTimer, clearRunTimers, suckProgress, supported]);
 
   useShakeDetection(revealButton, {
-    enabled: enabled && !running && Platform.OS !== 'web',
+    enabled: supported && enabled && !running,
   });
 
   useEffect(() => {
     return () => {
       clearButtonTimer();
       clearRunTimers();
+      cancelAnimation(suckProgress);
+      suckProgress.value = 0;
       runningRef.current = false;
     };
-  }, [clearButtonTimer, clearRunTimers]);
+  }, [clearButtonTimer, clearRunTimers, suckProgress]);
 
   return {
     running,
@@ -179,6 +183,8 @@ export function HomeMagicLayer({
       { scale: 0.86 + btnProgress.value * 0.14 },
     ],
   }));
+
+  if (Platform.OS === 'android') return null;
 
   return (
     <>

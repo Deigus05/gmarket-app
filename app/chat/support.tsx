@@ -145,7 +145,58 @@ export default function ChatScreen() {
   const typingSentRef = useRef(false);
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const focusedRef = useRef(false);
+  const recordingRef = useRef(false);
+  const recordingPhaseRef = useRef<'idle' | 'starting' | 'recording' | 'stopping'>('idle');
+  const recordingOperationRef = useRef<Promise<void>>(Promise.resolve());
   tokenRef.current = token;
+
+  const enqueueRecordingOperation = useCallback((operation: () => Promise<void>) => {
+    const nextOperation = recordingOperationRef.current
+      .catch(() => undefined)
+      .then(operation);
+    recordingOperationRef.current = nextOperation.catch(() => undefined);
+    return nextOperation;
+  }, []);
+
+  const restorePlaybackAudioMode = useCallback(async () => {
+    try {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+    } catch {
+      // Best effort: cleanup must never surface an error after the screen unmounts.
+    }
+  }, []);
+
+  const cleanupRecordingSession = useCallback(() => {
+    recordingPhaseRef.current = 'stopping';
+    return enqueueRecordingOperation(async () => {
+      try {
+        if (recordingRef.current || audioRecorder.isRecording) {
+          await audioRecorder.stop();
+        }
+      } catch {
+        // The recorder may already have been released by the hook.
+      } finally {
+        recordingRef.current = false;
+        await restorePlaybackAudioMode();
+        recordingPhaseRef.current = 'idle';
+        if (mountedRef.current) setRecordingBusy(false);
+      }
+    });
+  }, [audioRecorder, enqueueRecordingOperation, restorePlaybackAudioMode]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      focusedRef.current = false;
+      void cleanupRecordingSession();
+    };
+  }, [cleanupRecordingSession]);
 
   const stopCustomerTyping = useCallback(() => {
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
@@ -221,10 +272,15 @@ export default function ChatScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      focusedRef.current = true;
       void loadLatest();
       const id = conversationIdRef.current;
       if (id) void markRead(id);
-    }, [loadLatest, markRead]),
+      return () => {
+        focusedRef.current = false;
+        void cleanupRecordingSession();
+      };
+    }, [cleanupRecordingSession, loadLatest, markRead]),
   );
 
   useEffect(() => {
@@ -335,47 +391,87 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
-    if (recordingBusy || recorderState.isRecording || photos.length > 0) return;
+    if (
+      recordingPhaseRef.current !== 'idle'
+      || recordingBusy
+      || recorderState.isRecording
+      || photos.length > 0
+      || !focusedRef.current
+    ) return;
+
+    recordingPhaseRef.current = 'starting';
     setRecordingBusy(true);
-    try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Permissão do microfone',
-          'Permita o acesso ao microfone para enviar mensagens de áudio.',
-        );
-        return;
+    await enqueueRecordingOperation(async () => {
+      let recordingStarted = false;
+      try {
+        const permission = await AudioModule.requestRecordingPermissionsAsync();
+        if (!mountedRef.current || !focusedRef.current) return;
+        if (!permission.granted) {
+          Alert.alert(
+            'Permissão do microfone',
+            'Permita o acesso ao microfone para enviar mensagens de áudio.',
+          );
+          return;
+        }
+
+        setRecordedAudio(null);
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+        if (!mountedRef.current || !focusedRef.current) return;
+
+        await audioRecorder.prepareToRecordAsync();
+        if (!mountedRef.current || !focusedRef.current) return;
+
+        audioRecorder.record();
+        recordingRef.current = true;
+        recordingPhaseRef.current = 'recording';
+        recordingStarted = true;
+      } catch {
+        if (mountedRef.current && focusedRef.current) {
+          Alert.alert('Áudio', 'Não foi possível iniciar a gravação.');
+        }
+      } finally {
+        if (!recordingStarted) {
+          recordingRef.current = false;
+          await restorePlaybackAudioMode();
+          recordingPhaseRef.current = 'idle';
+        }
+        if (mountedRef.current) setRecordingBusy(false);
       }
-      setRecordedAudio(null);
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-    } catch {
-      Alert.alert('Áudio', 'Não foi possível iniciar a gravação.');
-    } finally {
-      setRecordingBusy(false);
-    }
+    });
   };
 
   const stopRecording = async (keepRecording = true) => {
-    if (recordingBusy || !recorderState.isRecording) return;
+    if (
+      recordingPhaseRef.current !== 'recording'
+      || recordingBusy
+      || (!recordingRef.current && !recorderState.isRecording)
+    ) return;
+
+    recordingPhaseRef.current = 'stopping';
     setRecordingBusy(true);
-    try {
-      await audioRecorder.stop();
-      setRecordedAudio(keepRecording ? audioRecorder.uri : null);
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      });
-    } catch {
-      setRecordedAudio(null);
-      Alert.alert('Áudio', 'Não foi possível concluir a gravação.');
-    } finally {
-      setRecordingBusy(false);
-    }
+    await enqueueRecordingOperation(async () => {
+      try {
+        if (recordingRef.current || audioRecorder.isRecording) {
+          await audioRecorder.stop();
+        }
+        if (mountedRef.current && focusedRef.current) {
+          setRecordedAudio(keepRecording ? audioRecorder.uri : null);
+        }
+      } catch {
+        if (mountedRef.current && focusedRef.current) {
+          setRecordedAudio(null);
+          Alert.alert('Áudio', 'Não foi possível concluir a gravação.');
+        }
+      } finally {
+        recordingRef.current = false;
+        await restorePlaybackAudioMode();
+        recordingPhaseRef.current = 'idle';
+        if (mountedRef.current) setRecordingBusy(false);
+      }
+    });
   };
 
   const submit = async () => {
@@ -530,7 +626,7 @@ export default function ChatScreen() {
           <Text style={styles.guestText}>{t('chat.guestSubtitle')}</Text>
           <Pressable
             style={styles.loginButton}
-            onPress={() => router.push({ pathname: '/login', params: { redirect: 'chat' } })}
+            onPress={() => router.push({ pathname: '/login', params: { redirect: '/chat/support' } })}
           >
             <Text style={styles.loginButtonText}>{t('common.login')}</Text>
           </Pressable>
@@ -548,7 +644,7 @@ export default function ChatScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ImageBackground
-          source={require('../assets/images/chat-background.png')}
+          source={require('../../assets/images/chat-background.png')}
           resizeMode="cover"
           style={styles.backgroundImage}
           imageStyle={{ opacity: isDark ? 0.2 : 0.34 }}
@@ -602,8 +698,12 @@ export default function ChatScreen() {
             loadingOlder ? <ActivityIndicator style={styles.olderLoader} color={ui.brand} /> : null
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="shield-checkmark-outline" size={34} color={ui.brand} />
+            <View style={styles.emptyCard}>
+              <Image
+                source={require('../../assets/images/support-robot.jpg')}
+                style={styles.emptyRobot}
+                contentFit="contain"
+              />
               <Text style={styles.emptyTitle}>{t('chat.emptyTitle')}</Text>
               <Text style={styles.emptyText}>{t('chat.emptySubtitle')}</Text>
             </View>
@@ -761,20 +861,40 @@ function AudioMessage({
   ui: AppUI;
   styles: ReturnType<typeof createStyles>;
 }) {
-  const player = useAudioPlayer(url, { updateInterval: 250, downloadFirst: true });
+  const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
+  const mountedRef = useRef(true);
+  const loadedUrlRef = useRef<string | null>(null);
   const duration = status.duration || 0;
   const progress = duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
 
-  const togglePlayback = () => {
-    if (status.playing) {
-      player.pause();
-      return;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const togglePlayback = async () => {
+    try {
+      if (status.playing) {
+        player.pause();
+        return;
+      }
+      if (loadedUrlRef.current !== url) {
+        player.replace(url);
+        loadedUrlRef.current = url;
+        player.play();
+        return;
+      }
+      if (duration > 0 && status.currentTime >= duration - 0.15) {
+        await player.seekTo(0);
+        if (!mountedRef.current) return;
+      }
+      player.play();
+    } catch {
+      loadedUrlRef.current = null;
     }
-    if (duration > 0 && status.currentTime >= duration - 0.15) {
-      void player.seekTo(0);
-    }
-    player.play();
   };
 
   return (
@@ -782,7 +902,7 @@ function AudioMessage({
       <Pressable
         accessibilityLabel={status.playing ? 'Pausar áudio' : 'Reproduzir áudio'}
         style={[styles.audioPlay, mine && styles.audioPlayMine]}
-        onPress={togglePlayback}
+        onPress={() => void togglePlayback()}
       >
         <Ionicons
           name={status.playing ? 'pause' : 'play'}
@@ -1072,6 +1192,34 @@ function createStyles(ui: AppUI) {
     },
     olderLoader: { marginVertical: 14 },
     empty: { alignItems: 'center', paddingHorizontal: 36, gap: 8 },
+    emptyCard: {
+      alignSelf: 'center',
+      alignItems: 'center',
+      gap: 12,
+      marginHorizontal: 28,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 20,
+      borderRadius: 22,
+      backgroundColor: ui.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: ui.border,
+      // FlatList invertida: sem isto o card fica de cabeça para baixo.
+      transform: [{ scaleY: -1 }],
+      shadowColor: '#000000',
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+      maxWidth: 320,
+    },
+    emptyRobot: {
+      width: 168,
+      height: 168,
+      borderRadius: 20,
+      backgroundColor: '#000000',
+      overflow: 'hidden',
+    },
     emptyTitle: { color: ui.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
     emptyText: { color: ui.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
     previews: {
