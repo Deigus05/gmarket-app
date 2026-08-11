@@ -24,6 +24,7 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
         "NSMicrophoneUsageDescription": "O GMarket usa o microfone exclusivamente para gravar e enviar mensagens de áudio no suporte.",
+        "NSContactsUsageDescription": "O GMarket usa os seus contactos para mostrar amigos que também têm conta na app.",
         "LSApplicationQueriesSchemes": [
           "comgooglemaps",
           "waze",

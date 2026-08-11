@@ -1,7 +1,7 @@
 # Codemagic — IPA produção para Sideloadly (Apple ID grátis, ~7 dias)
 # Sem expo-dev-client: o IPA embute o JS via Xcode e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
-# Atualizado 2026-08-11: inbox chat (Conversa/Contato), robô suporte, expo-contacts
+# Atualizado 2026-08-11: inbox chat, robô suporte, expo-contacts + log de erros xcodebuild
 
 workflows:
   ios-sideloadly:
@@ -22,18 +22,53 @@ workflows:
         script: |
           set -euo pipefail
           npm ci || npm install
+      - name: Ensure production (no expo-dev-client)
+        script: |
+          set -euo pipefail
+          npm uninstall expo-dev-client || true
+          node <<'NODE'
+          const fs = require('fs');
+          for (const file of ['package.json', 'app.json']) {
+            if (!fs.existsSync(file)) continue;
+            const raw = fs.readFileSync(file, 'utf8');
+            const json = JSON.parse(raw);
+            if (json.dependencies) delete json.dependencies['expo-dev-client'];
+            if (json.devDependencies) delete json.devDependencies['expo-dev-client'];
+            if (Array.isArray(json.expo?.plugins)) {
+              json.expo.plugins = json.expo.plugins.filter((plugin) => {
+                const name = Array.isArray(plugin) ? plugin[0] : plugin;
+                return name !== 'expo-dev-client';
+              });
+            }
+            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+          }
+          NODE
       - name: Generate iOS native project
         script: |
           set -euo pipefail
           export CI=1
+          export NODE_ENV=production
           npx expo prebuild --platform ios --clean
-          # Xcode precisa do Node no PATH do build phase
           echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
           cat ios/.xcode.env.local
       - name: Install CocoaPods
         script: |
           set -euo pipefail
           cd ios && pod install
+      - name: Pre-bundle JS for Release
+        script: |
+          set -euo pipefail
+          export CI=1
+          export NODE_ENV=production
+          mkdir -p "$CM_BUILD_DIR/ios"
+          npx expo export:embed \
+            --platform ios \
+            --dev false \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output "$CM_BUILD_DIR/ios/main.jsbundle" \
+            --assets-dest "$CM_BUILD_DIR/ios" \
+            --bytecode
+          ls -lh "$CM_BUILD_DIR/ios/main.jsbundle"
       - name: Build unsigned IPA for Sideloadly
         script: |
           set -euo pipefail
@@ -42,8 +77,10 @@ workflows:
           export CI=1
           export NODE_ENV=production
 
-          # Sem SKIP_BUNDLING: o phase "Bundle React Native code and images"
-          # do Expo gera e embute main.jsbundle (caminho oficial).
+          mkdir -p "$CM_BUILD_DIR/build"
+          LOG_FILE="$CM_BUILD_DIR/build/xcodebuild-archive.log"
+
+          set +e
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
@@ -54,8 +91,21 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             NODE_BINARY="$NODE_BINARY" \
-            archive
+            archive 2>&1 | tee "$LOG_FILE"
+          XCODE_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$XCODE_STATUS" -ne 0 ]; then
+            echo "ERROR: xcodebuild archive failed ($XCODE_STATUS)"
+            echo "---- last errors ----"
+            grep -E "error:|fatal error:|❌|Command PhaseScriptExecution failed|EMBEDDED_BINARY|Provisioning|Code Sign|No such module|Undefined symbols" "$LOG_FILE" | tail -80 || true
+            echo "---- tail log ----"
+            tail -120 "$LOG_FILE" || true
+            exit "$XCODE_STATUS"
+          fi
 
           APP_PATH="$(find "$CM_BUILD_DIR/build/GMarket.xcarchive/Products/Applications" -name '*.app' -print -quit)"
           if [ -z "${APP_PATH:-}" ]; then
@@ -63,17 +113,11 @@ workflows:
             exit 1
           fi
 
-          if [ ! -f "$APP_PATH/main.jsbundle" ]; then
-            echo "WARNING: main.jsbundle missing after xcodebuild — fallback expo export:embed"
-            cd "$CM_BUILD_DIR"
-            npx expo export:embed \
-              --platform ios \
-              --dev false \
-              --entry-file node_modules/expo-router/entry.js \
-              --bundle-output "$CM_BUILD_DIR/ios/main.jsbundle" \
-              --assets-dest "$APP_PATH" \
-              --bytecode
-            cp -f "$CM_BUILD_DIR/ios/main.jsbundle" "$APP_PATH/main.jsbundle"
+          # Garante JS + assets no .app (Sideloadly sem Metro)
+          cp -f "$CM_BUILD_DIR/ios/main.jsbundle" "$APP_PATH/main.jsbundle"
+          if [ -d "$CM_BUILD_DIR/ios/assets" ]; then
+            rm -rf "$APP_PATH/assets"
+            cp -R "$CM_BUILD_DIR/ios/assets" "$APP_PATH/assets"
           fi
 
           if [ ! -f "$APP_PATH/main.jsbundle" ]; then
@@ -96,6 +140,7 @@ workflows:
           ls -lh "$CM_BUILD_DIR/build/GMarket-sideloadly.ipa"
     artifacts:
       - build/*.ipa
+      - build/*.log
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
     publishing:
