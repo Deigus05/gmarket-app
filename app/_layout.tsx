@@ -3,7 +3,6 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -12,7 +11,6 @@ import 'react-native-reanimated';
 
 import AppLaunchIntro from '@/components/AppLaunchIntro';
 import { AuthProvider } from '@/components/AuthContext';
-import { DeliveryLiveActivityBootstrap } from '@/components/DeliveryLiveActivityBootstrap';
 import { LocaleProvider } from '@/components/LocaleContext';
 import { NotificationBootstrap } from '@/components/NotificationBootstrap';
 import { PresenceBootstrap } from '@/components/PresenceBootstrap';
@@ -30,9 +28,6 @@ export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 // Em Release/Sideloadly o intro usa a mesma arte do splash nativo e parece “preso”.
 const SHOW_LAUNCH_INTRO = __DEV__;
@@ -52,21 +47,14 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  // Esconde o splash nativo imediatamente — se o JS correu, a UI deve aparecer.
+  // Não bloqueia o splash nativo: o Expo esconde-o automaticamente.
+  // O timeout impede apenas que uma fonte com erro deixe a árvore React vazia.
   useEffect(() => {
-    void SplashScreen.hideAsync().catch(() => undefined);
     const t1 = setTimeout(() => {
-      void SplashScreen.hideAsync().catch(() => undefined);
       setFontsTimedOut(true);
     }, 1200);
     return () => clearTimeout(t1);
   }, []);
-
-  useEffect(() => {
-    if (loaded || fontsTimedOut) {
-      void SplashScreen.hideAsync().catch(() => undefined);
-    }
-  }, [loaded, fontsTimedOut]);
 
   const onIntroFinished = useCallback(() => {
     setIntroVisible(false);
@@ -97,7 +85,6 @@ function RootLayoutNav({ introDone }: { introDone: boolean }) {
         <ThemeProvider>
           <NotificationBootstrap />
           <PresenceBootstrap />
-          <DeliveryLiveActivityBootstrap />
           <PromoInterstitialBootstrap enabled={introDone} />
           <ThemedNavigation />
         </ThemeProvider>

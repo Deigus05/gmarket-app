@@ -17,7 +17,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gmarket.app",
       "infoPlist": {
-        "NSSupportsLiveActivities": true,
         "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
         "LSApplicationQueriesSchemes": [
           "comgooglemaps",
@@ -34,7 +33,6 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
@@ -46,13 +44,17 @@
       "favicon": "./assets/images/gmarket-icon.png"
     },
     "plugins": [
+      "expo-router",
       [
-        "expo-dev-client",
+        "expo-splash-screen",
         {
-          "launchMode": "most-recent"
+          "image": "./assets/images/gmarket-splash.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
         }
       ],
-      "expo-router",
+      "expo-asset",
       [
         "expo-location",
         {
@@ -94,7 +96,6 @@
           }
         }
       ],
-      "expo-live-activity",
       "expo-localization",
       "expo-secure-store",
       [

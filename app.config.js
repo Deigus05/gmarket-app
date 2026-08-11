@@ -6,10 +6,7 @@
  * Defina GOOGLE_MAPS_API_KEY no .env (local) ou no EAS Environment
  * (development / preview / production).
  */
-const appJson = require('./app.json');
-
-module.exports = () => {
-  const expo = appJson.expo;
+module.exports = ({ config }) => {
   const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY ?? '';
   const isEasBuild = process.env.EAS_BUILD === 'true';
 
@@ -21,18 +18,18 @@ module.exports = () => {
   }
 
   return {
-    ...expo,
+    ...config,
     ios: {
-      ...expo.ios,
+      ...config.ios,
       config: {
-        ...(expo.ios?.config ?? {}),
+        ...(config.ios?.config ?? {}),
         ...(googleMapsApiKey ? { googleMapsApiKey } : {}),
       },
     },
     android: {
-      ...expo.android,
+      ...config.android,
       config: {
-        ...(expo.android?.config ?? {}),
+        ...(config.android?.config ?? {}),
         googleMaps: {
           apiKey: googleMapsApiKey,
         },

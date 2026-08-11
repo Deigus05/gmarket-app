@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 import type { Order, OrderStatus } from '@/components/api';
 import {
   AccountDataKey,
@@ -22,7 +20,9 @@ const LIVE_STEPS: { id: OrderStatus; title: string; short: string }[] = [
 type ActivityMap = Record<string, string>;
 
 function isIosLiveActivitySupported() {
-  return Platform.OS === 'ios';
+  // Temporariamente desativado: expo-live-activity 0.4.2 declara um módulo
+  // Android inexistente e faz os binários standalone falharem ao arrancar.
+  return false;
 }
 
 async function loadActivityMap(): Promise<ActivityMap> {
@@ -83,14 +83,16 @@ const ACTIVITY_CONFIG = {
   contentFit: 'contain' as const,
 };
 
-async function getLiveActivityModule() {
-  if (!isIosLiveActivitySupported()) return null;
-  try {
-    return await import('expo-live-activity');
-  } catch (error) {
-    console.log('Live Activity indisponível:', error);
-    return null;
-  }
+type LiveActivityModule = {
+  startActivity: (state: ReturnType<typeof buildState>, config: typeof ACTIVITY_CONFIG & {
+    deepLinkUrl: string;
+  }) => string | undefined;
+  updateActivity: (activityId: string, state: ReturnType<typeof buildState>) => void;
+  stopActivity: (activityId: string, state: Record<string, unknown>) => void;
+};
+
+async function getLiveActivityModule(): Promise<LiveActivityModule | null> {
+  return null;
 }
 
 async function startForOrder(order: Order): Promise<string | undefined> {
