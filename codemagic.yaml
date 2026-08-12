@@ -18,6 +18,8 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
+      groups:
+        - android_fcm
       node: 22.14.0
       java: 17
       vars:
