@@ -10,6 +10,7 @@ import { syncDeliveryLiveActivities } from '@/components/deliveryLiveActivity';
 import {
   announceNewInboxNotifications,
   clearPresentedNotifications,
+  ensureAndroidChannel,
   registerForPushNotificationsAsync,
   resolveNotificationRoute,
 } from '@/components/notifications';
@@ -70,6 +71,7 @@ export function NotificationBootstrap() {
       const pref = await AsyncStorage.getItem(PUSH_PREF_KEY);
       if (pref === '0') return;
 
+      await ensureAndroidChannel();
       await registerForPushNotificationsAsync(authToken);
       if (cancelled) return;
 
@@ -82,7 +84,16 @@ export function NotificationBootstrap() {
 
     const onAppState = (state: AppStateStatus) => {
       appInForeground.current = state === 'active';
-      if (state === 'active') void syncInbox(false);
+      if (state === 'active') {
+        // Re-regista token (pode ter mudado) e anuncia o que chegou com o app fechado.
+        void (async () => {
+          const pref = await AsyncStorage.getItem(PUSH_PREF_KEY);
+          if (pref === '0' || cancelled) return;
+          await registerForPushNotificationsAsync(authToken);
+          if (cancelled) return;
+          await syncInbox(false);
+        })();
+      }
     };
     const appSub = AppState.addEventListener('change', onAppState);
 

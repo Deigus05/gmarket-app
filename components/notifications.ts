@@ -36,13 +36,18 @@ function resolveProjectId(): string | undefined {
 
 export async function ensureAndroidChannel() {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync('gmarket-default', {
+  const channel = {
     name: 'GMarket',
-    importance: Notifications.AndroidImportance.HIGH,
+    importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#0D47A1',
-    sound: 'default',
-  });
+    sound: 'default' as const,
+    enableVibrate: true,
+    showBadge: true,
+  };
+  // Canal usado pelo app + default do plugin (servidor envia channelId: gmarket-default)
+  await Notifications.setNotificationChannelAsync('gmarket-default', channel);
+  await Notifications.setNotificationChannelAsync('default', channel);
 }
 
 /** Limpa banners/lista do SO ao trocar ou sair da conta. */
@@ -91,10 +96,18 @@ export async function registerForPushNotificationsAsync(
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowDisplayInCarPlay: false,
+        },
+      });
       finalStatus = status;
     }
     if (finalStatus !== 'granted') {
+      await AsyncStorage.multiRemove([REMOTE_PUSH_ACTIVE_KEY]).catch(() => undefined);
       return { permission: false, pushToken: null };
     }
 
@@ -103,25 +116,41 @@ export async function registerForPushNotificationsAsync(
       console.log(
         'Push remoto indisponível: falta projectId EAS. Alertas locais do sininho continuam ativos.',
       );
+      await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY).catch(() => undefined);
       return { permission: true, pushToken: null };
     }
 
     if (!Device.isDevice && Platform.OS === 'android') {
       console.log('Push remoto precisa de dispositivo físico / emulador com Google Play.');
+      await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY).catch(() => undefined);
       return { permission: true, pushToken: null };
     }
 
     const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
     const expoToken = tokenResult.data;
-    if (!expoToken) return { permission: true, pushToken: null };
+    if (!expoToken) {
+      await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY).catch(() => undefined);
+      return { permission: true, pushToken: null };
+    }
 
-    await registerPushToken(authToken, expoToken, Platform.OS);
+    const registered = await registerPushToken(authToken, expoToken, Platform.OS);
+    if (!registered.success) {
+      console.log('Falha ao registar push token no servidor:', registered.message);
+      await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY).catch(() => undefined);
+      return { permission: true, pushToken: null };
+    }
+
     await AsyncStorage.setItem(PUSH_TOKEN_DEVICE_KEY, expoToken);
     await AsyncStorage.setItem(REMOTE_PUSH_ACTIVE_KEY, '1');
     console.log('Expo push token registado.');
     return { permission: true, pushToken: expoToken };
   } catch (error) {
     console.log('Push registration skipped:', error);
+    try {
+      await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY);
+    } catch {
+      // ignore
+    }
     return { permission: true, pushToken: null };
   }
 }
@@ -142,17 +171,15 @@ export function isChatNotification(
 ): boolean {
   if (!item || typeof item !== 'object') return false;
   const type = typeof item.type === 'string' ? item.type : null;
-  if (type === 'support_message' || type === 'direct_message') return true;
+  if (type === 'support_message') return true;
   const data = 'data' in item && item.data && typeof item.data === 'object' ? item.data : null;
   if (!data) return false;
   const screen = typeof data.screen === 'string' ? data.screen : null;
   const dataType = typeof data.type === 'string' ? data.type : null;
   return (
     dataType === 'support_message'
-    || dataType === 'direct_message'
     || screen === 'chat'
     || screen === 'support'
-    || screen === 'direct_chat'
   );
 }
 
@@ -171,11 +198,7 @@ export async function presentLocalNotification(item: AppNotification) {
       body: item.body,
       data: {
         type: item.type,
-        screen: item.type === 'support_message'
-          ? 'support'
-          : item.type === 'direct_message'
-            ? 'direct_chat'
-            : undefined,
+        screen: item.type === 'support_message' ? 'support' : undefined,
         ...(item.data || {}),
       },
       sound: 'default',
@@ -207,7 +230,11 @@ export async function saveSeenNotificationIds(ids: Set<string>) {
 
 /**
  * Mostra no telemóvel alertas locais para notificações novas da inbox.
- * Se push remoto estiver ativo, só marca como vistas (evita alerta duplicado).
+ * - Push remoto ativo: só marca como vistas (o SO já mostrou / vai mostrar o push).
+ * - Sem push remoto: alerta local no foreground; em background NÃO marca como vista
+ *   (para o banner aparecer ao voltar ao app).
+ * - bootstrap: só na 1.ª vez (seen vazio) — evita spam do histórico; não engole
+ *   notificações que chegaram com o app fechado.
  */
 export async function announceNewInboxNotifications(
   items: AppNotification[],
@@ -219,7 +246,8 @@ export async function announceNewInboxNotifications(
   const unread = items.filter((item) => !item.read_at);
   const seen = await loadSeenNotificationIds();
 
-  if (options?.bootstrap) {
+  // Seed inicial: utilizador novo / sem histórico local — não spammar o histórico.
+  if (options?.bootstrap && seen.size === 0) {
     for (const item of unread) seen.add(item.id);
     await saveSeenNotificationIds(seen);
     await markTicketConfirmedAnnounced(unread);
@@ -227,22 +255,42 @@ export async function announceNewInboxNotifications(
   }
 
   const toShow: AppNotification[] = [];
+  const supportOnly: AppNotification[] = [];
   for (const item of unread) {
     if (seen.has(item.id)) continue;
-    seen.add(item.id);
     // Suporte: marca como visto sem banner local (badge do chat cuida disso).
-    if (isSupportNotification(item)) continue;
+    if (isSupportNotification(item)) {
+      supportOnly.push(item);
+      continue;
+    }
     toShow.push(item);
   }
 
-  // Grava antes de alertar — evita corrida / duplicados
-  if (toShow.length || unread.some((item) => isSupportNotification(item))) {
+  if (supportOnly.length) {
+    for (const item of supportOnly) seen.add(item.id);
     await saveSeenNotificationIds(seen);
-    await markTicketConfirmedAnnounced(toShow);
   }
 
-  // Alertas locais quando o app está aberto (push remoto cobre background).
+  if (!toShow.length) return 0;
+
+  const remoteActive = await isRemotePushActive();
+
+  // Push remoto cobre background/terminated — evita banner local duplicado.
+  // Em foreground o NotificationHandler já mostra o push remoto.
+  if (remoteActive) {
+    for (const item of toShow) seen.add(item.id);
+    await saveSeenNotificationIds(seen);
+    await markTicketConfirmedAnnounced(toShow);
+    return 0;
+  }
+
+  // Sem push remoto: só alertar com o app em primeiro plano.
+  // Em background NÃO marcar como vista — senão o alerta nunca aparece.
   if (!options?.appInForeground) return 0;
+
+  for (const item of toShow) seen.add(item.id);
+  await saveSeenNotificationIds(seen);
+  await markTicketConfirmedAnnounced(toShow);
 
   let shown = 0;
   for (const item of toShow) {
@@ -278,8 +326,6 @@ export type NotificationRouteTarget =
   | { pathname: '/entrega'; params: { orderId: string } }
   | { pathname: '/loja'; params: { id: string } }
   | { pathname: '/chat'; params?: undefined }
-  | { pathname: '/chat/support'; params?: undefined }
-  | { pathname: `/chat/direct/${string}`; params?: undefined }
   | { pathname: '/(tabs)'; params?: undefined }
   | null;
 
@@ -291,23 +337,14 @@ export function resolveNotificationRoute(data: Record<string, unknown> | undefin
   const storeId = typeof data.storeId === 'string' ? data.storeId : null;
   const screen = typeof data.screen === 'string' ? data.screen : null;
   const type = typeof data.type === 'string' ? data.type : null;
-  const conversationId = typeof data.conversationId === 'string'
-    ? data.conversationId
-    : typeof data.conversation_id === 'string'
-      ? data.conversation_id
-      : null;
 
-  if (type === 'direct_message' || screen === 'direct_chat') {
-    if (conversationId) return { pathname: `/chat/direct/${conversationId}` };
-    return { pathname: '/chat' };
-  }
   if (
     isChatNotification({ type, data })
     || type === 'support_message'
     || screen === 'chat'
     || screen === 'support'
   ) {
-    return { pathname: '/chat/support' };
+    return { pathname: '/chat' };
   }
   if (productId || screen === 'productDetail') {
     if (productId) return { pathname: '/productDetail', params: { id: productId } };

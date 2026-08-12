@@ -8,6 +8,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -48,14 +49,12 @@ import {
   type SupportConversation,
   type SupportMessage,
 } from '@/components/api';
-import { ChatTopBar } from '@/components/chat/ChatTopBar';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { connectChatSocket, type ChatConnectionState } from '@/lib/chatSocket';
 import { compressImagesForUpload } from '@/lib/imageOptimization';
 
 const PAGE_SIZE = 30;
-const SUPPORT_ROBOT = require('../../assets/images/support-robot.png');
 
 function messageKey(message: SupportMessage) {
   return message.client_message_id || message.id;
@@ -146,58 +145,7 @@ export default function ChatScreen() {
   const typingSentRef = useRef(false);
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
-  const focusedRef = useRef(false);
-  const recordingRef = useRef(false);
-  const recordingPhaseRef = useRef<'idle' | 'starting' | 'recording' | 'stopping'>('idle');
-  const recordingOperationRef = useRef<Promise<void>>(Promise.resolve());
   tokenRef.current = token;
-
-  const enqueueRecordingOperation = useCallback((operation: () => Promise<void>) => {
-    const nextOperation = recordingOperationRef.current
-      .catch(() => undefined)
-      .then(operation);
-    recordingOperationRef.current = nextOperation.catch(() => undefined);
-    return nextOperation;
-  }, []);
-
-  const restorePlaybackAudioMode = useCallback(async () => {
-    try {
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      });
-    } catch {
-      // Best effort: cleanup must never surface an error after the screen unmounts.
-    }
-  }, []);
-
-  const cleanupRecordingSession = useCallback(() => {
-    recordingPhaseRef.current = 'stopping';
-    return enqueueRecordingOperation(async () => {
-      try {
-        if (recordingRef.current || audioRecorder.isRecording) {
-          await audioRecorder.stop();
-        }
-      } catch {
-        // The recorder may already have been released by the hook.
-      } finally {
-        recordingRef.current = false;
-        await restorePlaybackAudioMode();
-        recordingPhaseRef.current = 'idle';
-        if (mountedRef.current) setRecordingBusy(false);
-      }
-    });
-  }, [audioRecorder, enqueueRecordingOperation, restorePlaybackAudioMode]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      focusedRef.current = false;
-      void cleanupRecordingSession();
-    };
-  }, [cleanupRecordingSession]);
 
   const stopCustomerTyping = useCallback(() => {
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
@@ -273,15 +221,10 @@ export default function ChatScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      focusedRef.current = true;
       void loadLatest();
       const id = conversationIdRef.current;
       if (id) void markRead(id);
-      return () => {
-        focusedRef.current = false;
-        void cleanupRecordingSession();
-      };
-    }, [cleanupRecordingSession, loadLatest, markRead]),
+    }, [loadLatest, markRead]),
   );
 
   useEffect(() => {
@@ -392,87 +335,47 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
-    if (
-      recordingPhaseRef.current !== 'idle'
-      || recordingBusy
-      || recorderState.isRecording
-      || photos.length > 0
-      || !focusedRef.current
-    ) return;
-
-    recordingPhaseRef.current = 'starting';
+    if (recordingBusy || recorderState.isRecording || photos.length > 0) return;
     setRecordingBusy(true);
-    await enqueueRecordingOperation(async () => {
-      let recordingStarted = false;
-      try {
-        const permission = await AudioModule.requestRecordingPermissionsAsync();
-        if (!mountedRef.current || !focusedRef.current) return;
-        if (!permission.granted) {
-          Alert.alert(
-            'Permissão do microfone',
-            'Permita o acesso ao microfone para enviar mensagens de áudio.',
-          );
-          return;
-        }
-
-        setRecordedAudio(null);
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-        if (!mountedRef.current || !focusedRef.current) return;
-
-        await audioRecorder.prepareToRecordAsync();
-        if (!mountedRef.current || !focusedRef.current) return;
-
-        audioRecorder.record();
-        recordingRef.current = true;
-        recordingPhaseRef.current = 'recording';
-        recordingStarted = true;
-      } catch {
-        if (mountedRef.current && focusedRef.current) {
-          Alert.alert('Áudio', 'Não foi possível iniciar a gravação.');
-        }
-      } finally {
-        if (!recordingStarted) {
-          recordingRef.current = false;
-          await restorePlaybackAudioMode();
-          recordingPhaseRef.current = 'idle';
-        }
-        if (mountedRef.current) setRecordingBusy(false);
+    try {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permissão do microfone',
+          'Permita o acesso ao microfone para enviar mensagens de áudio.',
+        );
+        return;
       }
-    });
+      setRecordedAudio(null);
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch {
+      Alert.alert('Áudio', 'Não foi possível iniciar a gravação.');
+    } finally {
+      setRecordingBusy(false);
+    }
   };
 
   const stopRecording = async (keepRecording = true) => {
-    if (
-      recordingPhaseRef.current !== 'recording'
-      || recordingBusy
-      || (!recordingRef.current && !recorderState.isRecording)
-    ) return;
-
-    recordingPhaseRef.current = 'stopping';
+    if (recordingBusy || !recorderState.isRecording) return;
     setRecordingBusy(true);
-    await enqueueRecordingOperation(async () => {
-      try {
-        if (recordingRef.current || audioRecorder.isRecording) {
-          await audioRecorder.stop();
-        }
-        if (mountedRef.current && focusedRef.current) {
-          setRecordedAudio(keepRecording ? audioRecorder.uri : null);
-        }
-      } catch {
-        if (mountedRef.current && focusedRef.current) {
-          setRecordedAudio(null);
-          Alert.alert('Áudio', 'Não foi possível concluir a gravação.');
-        }
-      } finally {
-        recordingRef.current = false;
-        await restorePlaybackAudioMode();
-        recordingPhaseRef.current = 'idle';
-        if (mountedRef.current) setRecordingBusy(false);
-      }
-    });
+    try {
+      await audioRecorder.stop();
+      setRecordedAudio(keepRecording ? audioRecorder.uri : null);
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+    } catch {
+      setRecordedAudio(null);
+      Alert.alert('Áudio', 'Não foi possível concluir a gravação.');
+    } finally {
+      setRecordingBusy(false);
+    }
   };
 
   const submit = async () => {
@@ -611,15 +514,13 @@ export default function ChatScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ChatTopBar
+        <ChatHeader
           title={t('chat.title')}
-          status={t(`chat.connection.${connection}`)}
-          online={connection === 'connected'}
-          connecting={connection === 'connecting'}
-          avatarSource={SUPPORT_ROBOT}
-          avatarFallback="G"
+          subtitle={`${t('chat.official')} · ${t('chat.connection.disconnected')}`}
+          connection="disconnected"
           onBack={() => router.back()}
           ui={ui}
+          styles={styles}
         />
         <View style={styles.guest}>
           <View style={styles.guestIcon}>
@@ -629,7 +530,7 @@ export default function ChatScreen() {
           <Text style={styles.guestText}>{t('chat.guestSubtitle')}</Text>
           <Pressable
             style={styles.loginButton}
-            onPress={() => router.push({ pathname: '/login', params: { redirect: '/chat/support' } })}
+            onPress={() => router.push({ pathname: '/login', params: { redirect: 'chat' } })}
           >
             <Text style={styles.loginButtonText}>{t('common.login')}</Text>
           </Pressable>
@@ -647,7 +548,7 @@ export default function ChatScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ImageBackground
-          source={require('../../assets/images/chat-background.png')}
+          source={require('../assets/images/chat-background.png')}
           resizeMode="cover"
           style={styles.backgroundImage}
           imageStyle={{ opacity: isDark ? 0.2 : 0.34 }}
@@ -663,19 +564,13 @@ export default function ChatScreen() {
         />
       </View>
       <View style={{ height: insets.top }} />
-      <ChatTopBar
-        title={t('chat.supportTeam')}
-        status={
-          supportTyping
-            ? '…'
-            : t(`chat.connection.${connection}`)
-        }
-        online={connection === 'connected'}
-        connecting={connection === 'connecting'}
-        avatarSource={SUPPORT_ROBOT}
-        avatarFallback="G"
+      <ChatHeader
+        title={t('chat.title')}
+        subtitle={`${t('chat.official')} · ${t(`chat.connection.${connection}`)}`}
+        connection={connection}
         onBack={() => router.back()}
         ui={ui}
+        styles={styles}
       />
 
       {error ? (
@@ -707,12 +602,8 @@ export default function ChatScreen() {
             loadingOlder ? <ActivityIndicator style={styles.olderLoader} color={ui.brand} /> : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyCard}>
-              <Image
-                source={require('../../assets/images/support-robot.png')}
-                style={styles.emptyRobot}
-                contentFit="contain"
-              />
+            <View style={styles.empty}>
+              <Ionicons name="shield-checkmark-outline" size={34} color={ui.brand} />
               <Text style={styles.emptyTitle}>{t('chat.emptyTitle')}</Text>
               <Text style={styles.emptyText}>{t('chat.emptySubtitle')}</Text>
             </View>
@@ -870,40 +761,20 @@ function AudioMessage({
   ui: AppUI;
   styles: ReturnType<typeof createStyles>;
 }) {
-  const player = useAudioPlayer(null, { updateInterval: 250 });
+  const player = useAudioPlayer(url, { updateInterval: 250, downloadFirst: true });
   const status = useAudioPlayerStatus(player);
-  const mountedRef = useRef(true);
-  const loadedUrlRef = useRef<string | null>(null);
   const duration = status.duration || 0;
   const progress = duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const togglePlayback = async () => {
-    try {
-      if (status.playing) {
-        player.pause();
-        return;
-      }
-      if (loadedUrlRef.current !== url) {
-        player.replace(url);
-        loadedUrlRef.current = url;
-        player.play();
-        return;
-      }
-      if (duration > 0 && status.currentTime >= duration - 0.15) {
-        await player.seekTo(0);
-        if (!mountedRef.current) return;
-      }
-      player.play();
-    } catch {
-      loadedUrlRef.current = null;
+  const togglePlayback = () => {
+    if (status.playing) {
+      player.pause();
+      return;
     }
+    if (duration > 0 && status.currentTime >= duration - 0.15) {
+      void player.seekTo(0);
+    }
+    player.play();
   };
 
   return (
@@ -911,7 +782,7 @@ function AudioMessage({
       <Pressable
         accessibilityLabel={status.playing ? 'Pausar áudio' : 'Reproduzir áudio'}
         style={[styles.audioPlay, mine && styles.audioPlayMine]}
-        onPress={() => void togglePlayback()}
+        onPress={togglePlayback}
       >
         <Ionicons
           name={status.playing ? 'pause' : 'play'}
@@ -988,12 +859,120 @@ function TypingIndicator({ styles }: {
   );
 }
 
+function ChatHeader({
+  title,
+  subtitle,
+  connection,
+  onBack,
+  ui,
+  styles,
+}: {
+  title: string;
+  subtitle: string;
+  connection: ChatConnectionState;
+  onBack: () => void;
+  ui: AppUI;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.header}>
+      <Pressable style={styles.backButton} onPress={onBack}>
+        <BlurView
+          intensity={28}
+          tint={ui.statusBar === 'light' ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+        <Ionicons name="arrow-back" size={21} color={ui.text} />
+      </Pressable>
+      <BlurView
+        intensity={28}
+        tint={ui.statusBar === 'light' ? 'dark' : 'light'}
+        style={styles.headerCard}
+      >
+        <View style={styles.headerText}>
+        <Text style={styles.title}>{title}</Text>
+        <View style={styles.statusRow}>
+          <View
+            style={[
+              styles.statusDot,
+              connection === 'connected'
+                ? styles.connectedDot
+                : connection === 'connecting'
+                  ? styles.connectingDot
+                  : styles.disconnectedDot,
+            ]}
+          />
+          <Text style={styles.subtitle}>{subtitle}</Text>
+        </View>
+        </View>
+      </BlurView>
+    </View>
+  );
+}
+
 function createStyles(ui: AppUI) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: ui.bg },
     backgroundImage: { ...StyleSheet.absoluteFillObject },
     backgroundTint: { ...StyleSheet.absoluteFillObject },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+    header: {
+      height: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 56,
+      backgroundColor: 'transparent',
+    },
+    backButton: {
+      position: 'absolute',
+      left: 10,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      backgroundColor: ui.statusBar === 'light'
+        ? 'rgba(28,28,30,0.42)'
+        : 'rgba(255,255,255,0.58)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: ui.statusBar === 'light'
+        ? 'rgba(255,255,255,0.14)'
+        : 'rgba(255,255,255,0.72)',
+      zIndex: 2,
+    },
+    headerCard: {
+      minWidth: 218,
+      maxWidth: 260,
+      height: 52,
+      borderRadius: 26,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 22,
+      backgroundColor: ui.statusBar === 'light'
+        ? 'rgba(28,28,30,0.48)'
+        : 'rgba(245,245,247,0.62)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: ui.statusBar === 'light'
+        ? 'rgba(255,255,255,0.14)'
+        : 'rgba(255,255,255,0.8)',
+    },
+    headerText: { alignItems: 'center', justifyContent: 'center' },
+    title: { color: ui.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+    statusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      marginTop: 1,
+    },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    connectedDot: { backgroundColor: ui.success },
+    connectingDot: { backgroundColor: '#F59E0B' },
+    disconnectedDot: { backgroundColor: ui.muted },
+    subtitle: { color: ui.muted, fontSize: 11, fontWeight: '600' },
     errorBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1093,34 +1072,6 @@ function createStyles(ui: AppUI) {
     },
     olderLoader: { marginVertical: 14 },
     empty: { alignItems: 'center', paddingHorizontal: 36, gap: 8 },
-    emptyCard: {
-      alignSelf: 'center',
-      alignItems: 'center',
-      gap: 12,
-      marginHorizontal: 28,
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 20,
-      borderRadius: 22,
-      backgroundColor: ui.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: ui.border,
-      // FlatList invertida: sem isto o card fica de cabeça para baixo.
-      transform: [{ scaleY: -1 }],
-      shadowColor: '#000000',
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 3,
-      maxWidth: 320,
-    },
-    emptyRobot: {
-      width: 168,
-      height: 168,
-      borderRadius: 20,
-      backgroundColor: '#000000',
-      overflow: 'hidden',
-    },
     emptyTitle: { color: ui.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
     emptyText: { color: ui.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
     previews: {

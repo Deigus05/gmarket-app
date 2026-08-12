@@ -88,7 +88,8 @@ export default function LojaPerfilScreen() {
 
     const [storeData, storeProducts] = await Promise.all([
       getStoreById(storeId),
-      getStoreProducts(storeId),
+      // forceRefresh: produtos “invisíveis” no admin somem já ao reabrir a loja
+      getStoreProducts(storeId, { forceRefresh: true }),
     ]);
     if (!isCurrent()) return;
     setStore(storeData);

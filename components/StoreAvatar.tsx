@@ -89,8 +89,8 @@ export function StoreAvatar({
     <Image
       source={{ uri }}
       style={[boxStyle, style] as StyleProp<ImageStyle>}
-      contentFit="cover"
-      cachePolicy="none"
+      contentFit="contain"
+      cachePolicy="memory-disk"
       recyclingKey={`store-avatar-${storeId || 'x'}-${resolvedUrl}`}
       transition={120}
       onError={() => setFailed(true)}

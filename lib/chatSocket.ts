@@ -2,7 +2,6 @@ import { io, type Socket } from 'socket.io-client';
 
 import {
   API_URL,
-  type DirectConversation,
   type SupportConversation,
   type SupportMessage,
 } from '@/components/api';
@@ -12,9 +11,8 @@ export type ChatConnectionState = 'connecting' | 'connected' | 'disconnected';
 type ChatSocketOptions = {
   token: string;
   conversationId?: string;
-  channel?: 'support' | 'direct';
   onMessage?: (message: SupportMessage) => void;
-  onConversation?: (conversation: SupportConversation | DirectConversation) => void;
+  onConversation?: (conversation: SupportConversation) => void;
   onTyping?: (event: {
     conversation_id: string;
     role?: 'customer' | 'admin';
@@ -39,7 +37,6 @@ function eventData<T>(payload: T | { data?: T }): T | null {
 export function connectChatSocket({
   token,
   conversationId,
-  channel = 'support',
   onMessage,
   onConversation,
   onTyping,
@@ -60,15 +57,9 @@ export function connectChatSocket({
     transports: ['websocket', 'polling'],
   });
 
-  const joinEvent = channel === 'direct' ? 'direct:join' : 'support:join';
-  const leaveEvent = channel === 'direct' ? 'direct:leave' : 'support:leave';
-  const messageEvent = channel === 'direct' ? 'direct:message' : 'support:message';
-  const conversationEvent = channel === 'direct' ? 'direct:conversation' : 'support:conversation';
-  const typingEvent = channel === 'direct' ? 'direct:typing' : 'support:typing';
-
   const handleConnect = () => {
     onConnectionChange?.('connected');
-    if (conversationId) socket.emit(joinEvent, { conversation_id: conversationId });
+    if (conversationId) socket.emit('support:join', { conversation_id: conversationId });
   };
   const handleDisconnect = () => {
     if (!closed) onConnectionChange?.('disconnected');
@@ -81,7 +72,7 @@ export function connectChatSocket({
     if (message?.id) onMessage?.(message);
   };
   const handleConversation = (
-    payload: SupportConversation | DirectConversation | { data?: SupportConversation | DirectConversation },
+    payload: SupportConversation | { data?: SupportConversation },
   ) => {
     const conversation = eventData(payload);
     if (conversation?.id) onConversation?.(conversation);
@@ -104,22 +95,22 @@ export function connectChatSocket({
   socket.on('connect', handleConnect);
   socket.on('disconnect', handleDisconnect);
   socket.on('connect_error', handleError);
-  socket.on(messageEvent, handleMessage);
-  socket.on(conversationEvent, handleConversation);
-  socket.on(typingEvent, handleTyping);
+  socket.on('support:message', handleMessage);
+  socket.on('support:conversation', handleConversation);
+  socket.on('support:typing', handleTyping);
 
   return {
     socket,
     teardown: () => {
       if (closed) return;
       closed = true;
-      if (conversationId) socket.emit(leaveEvent, { conversation_id: conversationId });
+      if (conversationId) socket.emit('support:leave', { conversation_id: conversationId });
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('connect_error', handleError);
-      socket.off(messageEvent, handleMessage);
-      socket.off(conversationEvent, handleConversation);
-      socket.off(typingEvent, handleTyping);
+      socket.off('support:message', handleMessage);
+      socket.off('support:conversation', handleConversation);
+      socket.off('support:typing', handleTyping);
       socket.disconnect();
       onConnectionChange?.('disconnected');
     },

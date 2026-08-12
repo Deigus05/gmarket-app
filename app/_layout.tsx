@@ -30,8 +30,9 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// Em Release/Sideloadly o intro usa a mesma arte do splash nativo e parece “preso”.
-const SHOW_LAUNCH_INTRO = __DEV__;
+// Intro com logo + frase animada (“Você merece os melhores produtos!”).
+// Mantém timeouts de segurança no AppLaunchIntro para não ficar preso.
+const SHOW_LAUNCH_INTRO = true;
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({

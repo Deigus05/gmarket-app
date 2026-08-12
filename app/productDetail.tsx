@@ -15,10 +15,10 @@ import {
     toFavProduct,
     toggleProductFavorite,
 } from '@/lib/productFavorites';
+import { createPublicUrl } from '@/lib/publicUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Linking from 'expo-linking';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -739,10 +739,11 @@ export default function ProductDetailScreen() {
 
   const handleShareProduct = async () => {
     if (!product || !productId) return;
-    const url = Linking.createURL('/productDetail', { queryParams: { id: productId } });
+    const url = createPublicUrl('/productDetail', { id: productId });
     try {
       await Share.share({
         title: product.titulo,
+        // https:// is required for WhatsApp/SMS to show a tappable link
         message: `${product.titulo}\n${url}`,
         url,
       });

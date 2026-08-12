@@ -21,10 +21,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gmarket.app",
+      "associatedDomains": [
+        "applinks:www.gmbissau.com",
+        "applinks:gmbissau.com"
+      ],
       "infoPlist": {
         "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
         "NSMicrophoneUsageDescription": "O GMarket usa o microfone exclusivamente para gravar e enviar mensagens de áudio no suporte.",
-        "NSContactsUsageDescription": "O GMarket usa os seus contactos para mostrar amigos que também têm conta na app.",
         "LSApplicationQueriesSchemes": [
           "comgooglemaps",
           "waze",
@@ -43,7 +46,31 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.READ_CONTACTS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.gmbissau.com",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "gmbissau.com",
+              "pathPrefix": "/"
+            }
+          ]
+        }
       ]
     },
     "web": {
@@ -52,7 +79,12 @@
       "favicon": "./assets/images/gmarket-icon.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": "https://www.gmbissau.com"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -90,12 +122,6 @@
           "microphonePermission": "O GMarket usa o microfone exclusivamente para gravar e enviar mensagens de áudio no suporte."
         }
       ],
-      [
-        "expo-contacts",
-        {
-          "contactsPermission": "O GMarket usa os seus contactos para mostrar amigos que também têm conta na app."
-        }
-      ],
       "@react-native-community/datetimepicker",
       [
         "expo-notifications",
@@ -103,7 +129,8 @@
           "icon": "./assets/images/gmarket-icon.png",
           "color": "#0D47A1",
           "defaultChannel": "gmarket-default",
-          "sounds": []
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

@@ -88,7 +88,6 @@ import {
     getLiveProducts,
     getMyOrders,
     getMyTickets,
-    getDirectConversations,
     getMyNotifications,
     getSupportConversation,
     syncCartToServer,
@@ -1154,31 +1153,17 @@ export default function HomeScreen() {
       setChatUnread(0);
       return;
     }
-    const [supportResult, directResult] = await Promise.all([
-      getSupportConversation(token),
-      getDirectConversations(token),
-    ]);
+    const supportResult = await getSupportConversation(token);
     if (!isHomeScopeActive(generation)) return;
-    const supportUnread = supportResult.success
-      ? supportUnreadFromConversation(supportResult.data)
-      : 0;
-    const directUnread = directResult.success
-      ? (directResult.data.conversations || []).reduce(
-        (sum, item) => sum + Math.max(0, Number(item.unread_count || 0)),
-        0,
-      )
-      : 0;
-    if (supportResult.success || directResult.success) {
-      setChatUnread(supportUnread + directUnread);
+    if (supportResult.success) {
+      setChatUnread(supportUnreadFromConversation(supportResult.data));
       return;
     }
-    // Fallback: conta alertas de chat ainda não lidos na inbox.
+    // Fallback: conta alertas de suporte ainda não lidos na inbox.
     const inbox = await getMyNotifications(token, 50);
     if (inbox.success && isHomeScopeActive(generation)) {
       const count = inbox.data.filter(
-        (item) =>
-          !item.read_at
-          && (item.type === 'support_message' || item.type === 'direct_message'),
+        (item) => !item.read_at && item.type === 'support_message',
       ).length;
       setChatUnread(count);
     }
@@ -1249,7 +1234,6 @@ export default function HomeScreen() {
     if (!token || !isLoggedIn || !homeFocused) return;
     const supportSession = connectChatSocket({
       token,
-      channel: 'support',
       onMessage: (message) => {
         const fromSupport =
           (message.sender_type || message.sender) !== 'customer';
@@ -1259,19 +1243,8 @@ export default function HomeScreen() {
         void loadChatUnread();
       },
     });
-    const directSession = connectChatSocket({
-      token,
-      channel: 'direct',
-      onMessage: () => {
-        void loadChatUnread();
-      },
-      onConversation: () => {
-        void loadChatUnread();
-      },
-    });
     return () => {
       supportSession.teardown();
-      directSession.teardown();
     };
   }, [homeFocused, isLoggedIn, loadChatUnread, token]);
 

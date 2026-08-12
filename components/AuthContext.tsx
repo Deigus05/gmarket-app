@@ -30,6 +30,7 @@ import {
   setAccountItem,
   unbindAccount,
 } from '@/lib/accountStorage';
+import { isRemotePhotoUrl, persistProfilePhotoLocally } from '@/lib/profilePhoto';
 
 const AUTH_TOKEN_KEY = '@gmarket:auth_token';
 const AUTH_USER_CACHE_KEY = '@gmarket:auth_user_cache';
@@ -120,9 +121,23 @@ function isTransientAuthFailure(result: { success: false; reason?: string; messa
 }
 
 async function withLocalPhoto(customer: Customer): Promise<Customer> {
-  if (customer.foto_url) return customer;
-  const localPhoto = await getAccountItem(AccountDataKey.profilePhoto);
+  // Só confiar em URL remota do servidor; URIs de cache/galeria somem.
+  if (isRemotePhotoUrl(customer.foto_url)) return customer;
+
+  let localPhoto = await getAccountItem(AccountDataKey.profilePhoto);
   if (!localPhoto) return customer;
+
+  // Migra URI temporária (cache/picker) para Documents, se o ficheiro ainda existir.
+  try {
+    const durable = await persistProfilePhotoLocally(localPhoto, customer.id);
+    if (durable !== localPhoto) {
+      await setAccountItem(AccountDataKey.profilePhoto, durable);
+      localPhoto = durable;
+    }
+  } catch {
+    // Ficheiro temporário já apagado — mantém o que estiver gravado.
+  }
+
   return { ...customer, foto_url: localPhoto };
 }
 
@@ -336,23 +351,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const updatePhoto = useCallback(async (imageUri: string) => {
-    if (!token) return { ok: false as const, message: 'Sessão inválida.' };
-    const result = await uploadCustomerPhoto(token, imageUri);
+    if (!token || !user) return { ok: false as const, message: 'Sessão inválida.' };
+
+    // Grava cópia permanente (Documents) — a URI da galeria/cache é temporária.
+    let durableUri = imageUri;
+    try {
+      durableUri = await persistProfilePhotoLocally(imageUri, user.id);
+    } catch (error) {
+      console.log('Erro ao persistir foto de perfil localmente:', error);
+    }
+    await setAccountItem(AccountDataKey.profilePhoto, durableUri);
+
+    const result = await uploadCustomerPhoto(token, durableUri);
     if (result.success) {
-      const withPhoto = await withLocalPhoto(result.data);
-      await writeCachedUser(withPhoto);
-      setUser(withPhoto);
+      const remote = isRemotePhotoUrl(result.data.foto_url) ? result.data.foto_url : null;
+      const next: Customer = {
+        ...result.data,
+        foto_url: remote || durableUri,
+      };
+      await writeCachedUser(next);
+      setUser(next);
       return { ok: true as const };
     }
-    // Fallback local se o endpoint de foto ainda não existir no backend.
-    await setAccountItem(AccountDataKey.profilePhoto, imageUri);
+
+    // Fallback local se o endpoint de foto ainda não existir / falhar no backend.
     setUser((prev) => {
-      const next = prev ? { ...prev, foto_url: imageUri } : prev;
+      const next = prev ? { ...prev, foto_url: durableUri } : prev;
       if (next) void writeCachedUser(next);
       return next;
     });
     return { ok: true as const };
-  }, [token]);
+  }, [token, user]);
 
   const updateProfile = useCallback(async (input: {
     nome?: string;

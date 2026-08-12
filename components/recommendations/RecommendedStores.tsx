@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { memo, useMemo } from 'react';
 import {
@@ -11,11 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import type { LiveStore } from '@/components/api';
+import { StoreAvatar } from '@/components/StoreAvatar';
 import { useAppTheme, type AppUI } from '@/components/tema';
-import { optimizedImageUrl } from '@/lib/imageOptimization';
-
-const FALLBACK_LOGO =
-  'https://images.unsplash.com/photo-1560179707-f14dd11c87e8?w=200&h=200&fit=crop';
 
 type Props = {
   stores: LiveStore[];
@@ -34,10 +30,8 @@ export const RecommendedStores = memo(function RecommendedStores({ stores }: Pro
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.railScroll}
         contentContainerStyle={styles.list}
         nestedScrollEnabled
-        removeClippedSubviews
       >
         {stores.map((item) => (
           <TouchableOpacity
@@ -59,23 +53,30 @@ export const RecommendedStores = memo(function RecommendedStores({ stores }: Pro
               })
             }
           >
-            <Image
-              source={{
-                uri: optimizedImageUrl(item.logo_url || FALLBACK_LOGO, 'thumb'),
-              }}
-              style={styles.logo}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              recyclingKey={`${item.id}-logo-${item.logo_url || 'default'}`}
-            />
-            <Text style={styles.name} numberOfLines={2}>
-              {item.name}
-            </Text>
+            <View style={styles.logoWrap}>
+              <StoreAvatar
+                storeId={item.id}
+                logoUrl={item.logo_url}
+                size={64}
+                borderRadius={32}
+              />
+            </View>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={2}>
+                {item.name}
+              </Text>
+              {item.verified ? (
+                <Ionicons name="checkmark-circle" size={14} color={ui.brand} style={styles.verified} />
+              ) : null}
+            </View>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={12} color="#F5A623" />
               <Text style={styles.rating}>
                 {(item.rating_avg || 0).toFixed(1)}
               </Text>
+              {item.review_count > 0 ? (
+                <Text style={styles.reviews}>({item.review_count})</Text>
+              ) : null}
             </View>
           </TouchableOpacity>
         ))}
@@ -98,47 +99,64 @@ function createStyles(ui: AppUI) {
       paddingHorizontal: 12,
       marginBottom: 10,
     },
-    railScroll: {
-      height: 120,
-    },
     list: {
       paddingHorizontal: 10,
-      gap: 8,
-      alignItems: 'flex-start',
+      gap: 10,
+      alignItems: 'stretch',
+      paddingBottom: 2,
     },
     card: {
-      width: 118,
+      width: 132,
       backgroundColor: ui.card,
-      borderRadius: 12,
-      padding: 10,
+      borderRadius: 14,
+      paddingTop: 12,
+      paddingBottom: 12,
+      paddingHorizontal: 10,
       alignItems: 'center',
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: ui.border,
     },
-    logo: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: ui.input,
-      marginBottom: 8,
+    logoWrap: {
+      marginBottom: 10,
+      // Fundo claro atrás do logo — evita logos brancos “sumirem” no dark mode
+      backgroundColor: '#FFFFFF',
+      borderRadius: 32,
+      padding: 2,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      gap: 3,
+      minHeight: 34,
+      width: '100%',
     },
     name: {
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: '700',
       color: ui.text,
       textAlign: 'center',
-      minHeight: 32,
+      lineHeight: 16,
+    },
+    verified: {
+      marginTop: 1,
     },
     ratingRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 3,
-      marginTop: 4,
+      marginTop: 6,
     },
     rating: {
       fontSize: 11,
       color: ui.muted,
       fontWeight: '600',
+    },
+    reviews: {
+      fontSize: 10,
+      color: ui.muted,
+      fontWeight: '500',
     },
   });
 }

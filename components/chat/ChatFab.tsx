@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/components/AuthContext';
-import { getDirectConversations, getSupportConversation } from '@/components/api';
+import { getSupportConversation } from '@/components/api';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme } from '@/components/tema';
 import { connectChatSocket } from '@/lib/chatSocket';
@@ -24,20 +24,8 @@ export function ChatFab() {
       setUnread(0);
       return;
     }
-    const [supportResult, directResult] = await Promise.all([
-      getSupportConversation(token),
-      getDirectConversations(token),
-    ]);
-    const supportUnread = supportResult.success
-      ? Math.max(0, Number(supportResult.data.unread_count || 0))
-      : 0;
-    const directUnread = directResult.success
-      ? (directResult.data.conversations || []).reduce(
-        (sum, item) => sum + Math.max(0, Number(item.unread_count || 0)),
-        0,
-      )
-      : 0;
-    setUnread(supportUnread + directUnread);
+    const result = await getSupportConversation(token);
+    setUnread(result.success ? Math.max(0, Number(result.data.unread_count || 0)) : 0);
   }, [isLoggedIn, token]);
 
   useFocusEffect(
@@ -50,34 +38,19 @@ export function ChatFab() {
 
   useEffect(() => {
     if (!token || !isLoggedIn || !focused) return;
-    const supportSession = connectChatSocket({
+    const session = connectChatSocket({
       token,
-      channel: 'support',
       onMessage: (message) => {
         if (message.sender_type !== 'customer') setUnread((count) => count + 1);
       },
       onConversation: (conversation) => {
-        if ('peer' in conversation) return;
         if (typeof conversation.unread_count === 'number') {
           void refresh();
         }
       },
     });
-    const directSession = connectChatSocket({
-      token,
-      channel: 'direct',
-      onMessage: (message) => {
-        if (message.sender_type === 'customer' || message.sender_id) {
-          void refresh();
-        }
-      },
-      onConversation: () => {
-        void refresh();
-      },
-    });
     return () => {
-      supportSession.teardown();
-      directSession.teardown();
+      session.teardown();
     };
   }, [focused, isLoggedIn, refresh, token]);
 
