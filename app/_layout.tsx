@@ -3,7 +3,6 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -20,6 +19,7 @@ import { PresenceBootstrap } from '@/components/PresenceBootstrap';
 import { PromoInterstitialBootstrap } from '@/components/PromoInterstitialBootstrap';
 import '@/components/notifications';
 import { ThemeProvider, useAppTheme } from '@/components/tema';
+import { hideNativeSplashSafe, keepNativeSplash } from '@/lib/splash';
 import { prefetchPlatformContacts } from '@/lib/support';
 
 export {
@@ -31,6 +31,9 @@ export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
+
+// Manter splash nativo até a intro (logo + texto) estar no ecrã.
+keepNativeSplash();
 
 // Intro com logo + frase animada (“Você merece os melhores produtos!”).
 // Mantém timeouts de segurança no AppLaunchIntro para não ficar preso.
@@ -65,13 +68,13 @@ export default function RootLayout() {
   // estar no ecrã (evita apagão entre splash nativo e a animação).
   useEffect(() => {
     if (!appReady || SHOW_LAUNCH_INTRO) return;
-    SplashScreen.hideAsync().catch(() => undefined);
+    void hideNativeSplashSafe();
   }, [appReady]);
 
   // Rede de segurança: nunca deixar o splash nativo mais de ~4s.
   useEffect(() => {
     const safety = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => undefined);
+      void hideNativeSplashSafe();
     }, 4000);
     return () => clearTimeout(safety);
   }, []);

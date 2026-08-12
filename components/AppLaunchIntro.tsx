@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
@@ -12,6 +11,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import FocusReveal from '@/components/FocusReveal';
+import { hideNativeSplashSafe } from '@/lib/splash';
 
 const TAGLINE = 'Você merece os melhores produtos!';
 const FADE_OUT_MS = 420;
@@ -24,21 +24,17 @@ type AppLaunchIntroProps = {
 };
 
 /**
- * Intro: logo estático + frase com FocusReveal (vibração por letra).
- * Esconde o splash nativo só depois do overlay branco estar no ecrã —
- * evita o “apagão” rápido entre splash e intro.
+ * Intro: logo GMarket + frase com FocusReveal (vibração por letra).
+ * Esconde o splash nativo só depois do overlay branco + logo estarem no ecrã.
  */
 export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroProps) {
   const insets = useSafeAreaInsets();
   const opacity = useSharedValue(1);
   const [textDone, setTextDone] = useState(false);
   const finishedRef = React.useRef(false);
-  const splashHiddenRef = React.useRef(false);
 
-  const hideNativeSplash = useCallback(() => {
-    if (splashHiddenRef.current) return;
-    splashHiddenRef.current = true;
-    void SplashScreen.hideAsync().catch(() => undefined);
+  const hideSplash = useCallback(() => {
+    void hideNativeSplashSafe();
   }, []);
 
   const finish = useCallback(() => {
@@ -50,11 +46,11 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
   useEffect(() => {
     if (!visible) return;
     const timer = setTimeout(() => {
-      hideNativeSplash();
+      hideSplash();
       finish();
     }, INTRO_SAFETY_MS);
     return () => clearTimeout(timer);
-  }, [visible, finish, hideNativeSplash]);
+  }, [visible, finish, hideSplash]);
 
   useEffect(() => {
     if (!textDone) return;
@@ -80,7 +76,7 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
     <Animated.View
       pointerEvents="auto"
       style={[styles.overlay, overlayStyle]}
-      onLayout={hideNativeSplash}
+      onLayout={hideSplash}
     >
       <View style={styles.center}>
         <Image
@@ -88,7 +84,7 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
           style={styles.logo}
           contentFit="contain"
           accessibilityLabel="GMarket"
-          onLoad={hideNativeSplash}
+          onLoad={hideSplash}
         />
       </View>
 
