@@ -1,9 +1,83 @@
-# Codemagic — IPA produção para Sideloadly (Apple ID grátis, ~7 dias)
-# Sem expo-dev-client: o IPA embute o JS via Xcode e NÃO precisa de Metro.
+# Codemagic — IPA (Sideloadly) + APK Android
+# Sem expo-dev-client: o binário embute o JS e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
-# Atualizado 2026-08-12: suporte único (sem chat entre utilizadores)
+# Atualizado 2026-08-12: notificações + intro estável
 
 workflows:
+  android-apk:
+    name: Android APK
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      node: 22.14.0
+      java: 17
+      vars:
+        EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
+        NODE_ENV: production
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          set -euo pipefail
+          npm ci || npm install
+      - name: Ensure production (no expo-dev-client)
+        script: |
+          set -euo pipefail
+          npm uninstall expo-dev-client || true
+          node <<'NODE'
+          const fs = require('fs');
+          for (const file of ['package.json', 'app.json']) {
+            if (!fs.existsSync(file)) continue;
+            const raw = fs.readFileSync(file, 'utf8');
+            const json = JSON.parse(raw);
+            if (json.dependencies) delete json.dependencies['expo-dev-client'];
+            if (json.devDependencies) delete json.devDependencies['expo-dev-client'];
+            if (Array.isArray(json.expo?.plugins)) {
+              json.expo.plugins = json.expo.plugins.filter((plugin) => {
+                const name = Array.isArray(plugin) ? plugin[0] : plugin;
+                return name !== 'expo-dev-client';
+              });
+            }
+            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+          }
+          NODE
+      - name: Generate Android native project
+        script: |
+          set -euo pipefail
+          export CI=1
+          export NODE_ENV=production
+          npx expo prebuild --platform android --clean
+      - name: Set Android SDK location
+        script: |
+          set -euo pipefail
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Build release APK
+        script: |
+          set -euo pipefail
+          export CI=1
+          export NODE_ENV=production
+          cd "$CM_BUILD_DIR/android"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p "$CM_BUILD_DIR/build"
+          APK="$(find "$CM_BUILD_DIR/android/app/build/outputs/apk" -name '*.apk' -print | head -n 1)"
+          if [ -z "${APK:-}" ]; then
+            echo "ERROR: APK not found"
+            find "$CM_BUILD_DIR/android/app/build/outputs" -type f | head -80 || true
+            exit 1
+          fi
+          cp -f "$APK" "$CM_BUILD_DIR/build/GMarket.apk"
+          ls -lh "$CM_BUILD_DIR/build/GMarket.apk"
+    artifacts:
+      - build/*.apk
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - deivimramalho@gmail.com
+        notify:
+          success: true
+          failure: true
+
   ios-sideloadly:
     name: iOS IPA (Sideloadly)
     max_build_duration: 120
