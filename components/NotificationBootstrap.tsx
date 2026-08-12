@@ -131,10 +131,19 @@ export function NotificationBootstrap() {
     };
     const appSub = AppState.addEventListener('change', onAppState);
 
+    // Push remoto entregue pelo SO → marcar como anunciado (evita duplicar com poll local).
+    // Só corre quando a notificação chegou de facto ao dispositivo.
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as Record<string, unknown> | undefined;
+      const id = extractNotificationId(data);
+      if (id) void markNotificationsAnnounced([id]);
+    });
+
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
       appSub.remove();
+      receivedSub.remove();
     };
   }, [isLoggedIn, token, user?.id]);
 

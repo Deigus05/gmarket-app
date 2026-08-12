@@ -25,6 +25,9 @@
         "applinks:www.gmbissau.com",
         "applinks:gmbissau.com"
       ],
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
         "NSMicrophoneUsageDescription": "O GMarket usa o microfone exclusivamente para gravar e enviar mensagens de áudio no suporte.",

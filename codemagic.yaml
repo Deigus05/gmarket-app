@@ -1,7 +1,16 @@
 # Codemagic — IPA (Sideloadly) + APK Android
 # Sem expo-dev-client: o binário embute o JS e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
-# Atualizado 2026-08-12: notificações + intro estável
+#
+# PUSH / NOTIFICAÇÕES
+# - Android APK: exige GOOGLE_SERVICES_JSON (secret) com Firebase package com.gmarket.app.
+#   Backend → Expo Push API → FCM v1. Sem este ficheiro o push em background/fechado falha.
+# - iOS Sideloadly: IPA UNSIGNED (CODE_SIGNING_ALLOWED=NO). Sideloadly re-assina no PC.
+#   LIMITAÇÃO: push remoto APNs NÃO é fiável neste fluxo (sem entitlement/assinatura Apple
+#   de distribuição). Use este workflow para UI/testes sem depender de push remoto.
+# - iOS push remoto com app FECHADO: use EAS Build assinado
+#   (eas build --platform ios --profile preview ou production) com APNs Key no
+#   expo.dev → Project → Credentials. Bundle: com.gmarket.app.
 
 workflows:
   android-apk:
@@ -14,6 +23,7 @@ workflows:
       vars:
         EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
         NODE_ENV: production
+        REQUIRE_ANDROID_FCM: "1"
     scripts:
       - name: Install npm dependencies
         script: |
@@ -40,7 +50,7 @@ workflows:
             fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
           }
           NODE
-      - name: Configure Firebase (FCM push em background)
+      - name: Configure Firebase (FCM push em background/fechado)
         script: |
           set -euo pipefail
           node scripts/prepare-push-android.mjs
@@ -50,6 +60,14 @@ workflows:
           export CI=1
           export NODE_ENV=production
           npx expo prebuild --platform android --clean
+          if [ ! -f "$CM_BUILD_DIR/google-services.json" ]; then
+            echo "ERROR: google-services.json em falta após prepare-push-android"
+            exit 1
+          fi
+          if ! grep -q 'com.gmarket.app' "$CM_BUILD_DIR/android/app/build.gradle" \
+            && ! grep -q 'com.gmarket.app' "$CM_BUILD_DIR/android/app/build.gradle.kts" 2>/dev/null; then
+            echo "WARN: confirme applicationId com.gmarket.app no projeto Android gerado"
+          fi
       - name: Set Android SDK location
         script: |
           set -euo pipefail
@@ -84,6 +102,8 @@ workflows:
 
   ios-sideloadly:
     name: iOS IPA (Sideloadly)
+    # LIMITAÇÃO PUSH: este IPA é unsigned. NÃO usar para validar push remoto APNs.
+    # Para push com app fechado: EAS Build iOS (profile preview/production) + APNs Key no Expo.
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
@@ -129,6 +149,8 @@ workflows:
           npx expo prebuild --platform ios --clean
           echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
           cat ios/.xcode.env.local
+          echo "NOTE: Sideloadly IPA is UNSIGNED — APNs remote push is NOT guaranteed."
+          echo "Use EAS signed iOS build to validate closed-app push (com.gmarket.app)."
       - name: Install CocoaPods
         script: |
           set -euo pipefail
@@ -216,6 +238,7 @@ workflows:
             zip -qry "$CM_BUILD_DIR/build/GMarket-sideloadly.ipa" Payload
           )
           ls -lh "$CM_BUILD_DIR/build/GMarket-sideloadly.ipa"
+          echo "LIMITAÇÃO: este IPA NÃO valida push APNs. Use EAS iOS assinado para push fechado."
     artifacts:
       - build/*.ipa
       - build/*.log
