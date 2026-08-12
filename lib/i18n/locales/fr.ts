@@ -648,6 +648,11 @@ const fr: TranslationKeys = {
     deposit: 'Déposer',
     depositHint: 'Ajouter de la GCoin au portefeuille',
     depositSoon: 'Dépôt de GCoin bientôt disponible.',
+    depositSupportMessage:
+      'Pour déposer de la GCoin, contactez le support GMarket ou appelez le {phone}. L’équipe confirmera le paiement et créditera votre portefeuille.',
+    depositWaPrefill: 'Bonjour ! Je souhaite déposer de la GCoin sur mon portefeuille GPay.',
+    callSupport: 'Appeler',
+    whatsappSupport: 'WhatsApp',
     cashback: 'Cashback',
     cashbackHint: 'Récompenses en GCoin',
     cashbackValue: '{amount} GCoin',

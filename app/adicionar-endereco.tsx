@@ -14,11 +14,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
+import SafeMapView from '@/components/SafeMapView';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { resolvePostAuthHref } from '@/lib/navigation';
 
@@ -193,24 +194,23 @@ export default function AdicionarEnderecoScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.mapWrapper}>
-          <MapView
+        <View style={styles.mapWrapper} collapsable={false}>
+          <SafeMapView
             ref={mapRef}
             style={styles.map}
-            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             initialRegion={regiao}
-            onPress={(event) => handleMapPress(event.nativeEvent.coordinate)}
-            showsUserLocation
+            onPress={(event) => void handleMapPress(event.nativeEvent.coordinate)}
+            loaderColor={ui.brand}
           >
             <Marker
               coordinate={{ latitude: regiao.latitude, longitude: regiao.longitude }}
               draggable
-              onDragEnd={(event) => handleMapPress(event.nativeEvent.coordinate)}
+              onDragEnd={(event) => void handleMapPress(event.nativeEvent.coordinate)}
             />
-          </MapView>
+          </SafeMapView>
           <TouchableOpacity
             style={[styles.gpsButton, buscandoLocalizacao && styles.disabled]}
-            onPress={buscarLocalizacaoAtual}
+            onPress={() => void buscarLocalizacaoAtual()}
             disabled={buscandoLocalizacao}
           >
             {buscandoLocalizacao

@@ -1791,13 +1791,15 @@ export default function HomeScreen() {
           setTimeout(() => setCatalogVisible(false), 120);
         }}
       />
-      <LocalizacaoModal
-        visivel={localizacaoVisivel}
-        onFechar={() => setLocalizacaoVisivel(false)}
-        onSelecionarEndereco={(novoEnd: string) => {
-          void saveHomeAddress(novoEnd);
-        }}
-      />
+      {localizacaoVisivel ? (
+        <LocalizacaoModal
+          visivel
+          onFechar={() => setLocalizacaoVisivel(false)}
+          onSelecionarEndereco={(novoEnd: string) => {
+            void saveHomeAddress(novoEnd);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

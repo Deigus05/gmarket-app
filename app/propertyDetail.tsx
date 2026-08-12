@@ -7,7 +7,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -16,12 +15,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPropertyById, Property, PropertyAttribute } from '@/components/api';
 import { ImageGalleryViewer } from '@/components/ImageGalleryViewer';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
+import SafeMapView from '@/components/SafeMapView';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { formatPropertyPrice, hotelStarCount, propertyPurposeBadge } from '@/constants/propertyDisplay';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
@@ -313,16 +313,16 @@ export default function PropertyDetailScreen() {
           {showMap && (
             <View style={styles.mapSection}>
               <Text style={styles.section}>{t('propertyDetail.locationOnMap')}</Text>
-              <View style={styles.mapBox}>
-                <MapView
+              <View style={styles.mapBox} collapsable={false}>
+                <SafeMapView
                   style={styles.map}
-                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                   initialRegion={{
                     latitude: Number(property.latitude),
                     longitude: Number(property.longitude),
                     latitudeDelta: 0.02,
                     longitudeDelta: 0.02,
                   }}
+                  loaderColor={ui.brand}
                 >
                   <Marker
                     coordinate={{
@@ -331,7 +331,7 @@ export default function PropertyDetailScreen() {
                     }}
                     title={property.title}
                   />
-                </MapView>
+                </SafeMapView>
               </View>
               <TouchableOpacity style={styles.routeBtn} onPress={openRoute} activeOpacity={0.85}>
                 <Ionicons name="navigate" size={18} color={ui.onBrand} />

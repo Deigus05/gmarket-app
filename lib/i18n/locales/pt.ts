@@ -650,6 +650,11 @@ const pt = {
     deposit: 'Depositar',
     depositHint: 'Adicionar GCoin à carteira',
     depositSoon: 'Depósito de GCoin em breve.',
+    depositSupportMessage:
+      'Para depositar GCoin, contacte o suporte GMarket ou ligue para {phone}. A equipa confirma o pagamento e credita a sua carteira.',
+    depositWaPrefill: 'Olá! Quero depositar GCoin na minha carteira GPay.',
+    callSupport: 'Ligar',
+    whatsappSupport: 'WhatsApp',
     cashback: 'Cashback',
     cashbackHint: 'Recompensas em GCoin',
     cashbackValue: '{amount} GCoin',

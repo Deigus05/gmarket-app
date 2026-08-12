@@ -24,6 +24,12 @@ import {
   authenticateGPayAccess,
   shouldRequireGPayBiometrics,
 } from '@/lib/gpayBiometrics';
+import {
+  formatSupportPhoneDisplay,
+  getSupportWhatsApp,
+  openSupportCall,
+  openSupportWhatsApp,
+} from '@/lib/support';
 
 const PAD = 18;
 const GAP = 12;
@@ -205,6 +211,30 @@ export default function GPayScreen() {
     hasLoadedRef.current = true;
     return true;
   }, [token, isLoggedIn, t]);
+
+  const onDepositPress = useCallback(async () => {
+    const phone = await getSupportWhatsApp();
+    const display = formatSupportPhoneDisplay(phone) || phone || '—';
+    Alert.alert(
+      t('gpay.deposit'),
+      t('gpay.depositSupportMessage', { phone: display }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('gpay.callSupport'),
+          onPress: () => {
+            void openSupportCall();
+          },
+        },
+        {
+          text: t('gpay.whatsappSupport'),
+          onPress: () => {
+            void openSupportWhatsApp(t('gpay.depositWaPrefill'));
+          },
+        },
+      ],
+    );
+  }, [t]);
 
   const unlockWithFaceId = useCallback(async () => {
     if (
@@ -434,7 +464,7 @@ export default function GPayScreen() {
           <>
             <Animated.View entering={FadeInUp.delay(50).duration(400)} style={styles.depositBlockWrap}>
               <Pressable
-                onPress={() => Alert.alert(t('gpay.deposit'), t('gpay.depositSoon'))}
+                onPress={() => void onDepositPress()}
                 style={({ pressed }) => [
                   styles.depositBlock,
                   pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] },

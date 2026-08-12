@@ -5,17 +5,17 @@ import {
   Alert,
   Dimensions,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
+import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
+import SafeMapView from '@/components/SafeMapView';
 import { useAppTheme, type AppUI } from '@/components/tema';
 
 const { height } = Dimensions.get('window');
@@ -60,16 +60,6 @@ export function PropertyMapPickerModal({
     initial ?? { latitude: BISSAU.latitude, longitude: BISSAU.longitude },
   );
   const [locating, setLocating] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-
-  useEffect(() => {
-    if (!visible) {
-      setMapReady(false);
-      return;
-    }
-    const timer = setTimeout(() => setMapReady(true), Platform.OS === 'android' ? 250 : 0);
-    return () => clearTimeout(timer);
-  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -136,16 +126,14 @@ export function PropertyMapPickerModal({
         <Text style={styles.hint}>{t('announce.mapPickHint')}</Text>
 
         <View style={styles.mapWrap} collapsable={false}>
-          {mapReady ? (
-            <MapView
+          {visible ? (
+            <SafeMapView
               ref={mapRef}
               key="property-map-picker"
               style={styles.map}
-              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
               initialRegion={region}
               onPress={(e) => movePin(e.nativeEvent.coordinate)}
-              showsUserLocation
-              showsMyLocationButton={false}
+              loaderColor={ui.brand}
             >
               <Marker
                 coordinate={pin}
@@ -153,7 +141,7 @@ export function PropertyMapPickerModal({
                 onDragEnd={(e) => movePin(e.nativeEvent.coordinate)}
                 title={t('announce.mapMarker')}
               />
-            </MapView>
+            </SafeMapView>
           ) : (
             <View style={[styles.map, styles.mapPlaceholder]}>
               <RippleWaveLoader size="small" color={ui.brand} />
@@ -162,7 +150,7 @@ export function PropertyMapPickerModal({
 
           <TouchableOpacity
             style={[styles.gpsBtn, locating && styles.gpsDisabled]}
-            onPress={goToMyLocation}
+            onPress={() => void goToMyLocation()}
             disabled={locating}
           >
             {locating ? (

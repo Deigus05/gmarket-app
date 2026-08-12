@@ -234,9 +234,11 @@ export async function saveSeenNotificationIds(ids: Set<string>) {
 
 /**
  * Mostra no telemóvel alertas locais para notificações novas da inbox.
- * Nunca depende só do push remoto: em Sideloadly / builds sem APNs o push falha
- * e o utilizador ficava sem banner. Em foreground mostramos sempre o que ainda
- * não foi anunciado; identifier estável evita duplicar o mesmo id.
+ * Enquanto o processo JS está vivo (app aberta ou em 2.º plano), anuncia
+ * localmente — o push remoto falha com frequência (FCM/APNs em falta) e o
+ * utilizador ficava sem banner até reabrir. App totalmente morta continua a
+ * depender de push remoto (FCM no Android / APNs no iOS).
+ * Identifier estável evita spam do mesmo id no poll.
  */
 export async function announceNewInboxNotifications(
   items: AppNotification[],
@@ -256,6 +258,7 @@ export async function announceNewInboxNotifications(
     }
     await saveSeenNotificationIds(seen);
     await markTicketConfirmedAnnounced(unread);
+    // No cold start em background não disparamos o histórico.
     if (!options?.appInForeground) return 0;
   }
 
@@ -277,9 +280,18 @@ export async function announceNewInboxNotifications(
 
   if (!toShow.length) return 0;
 
-  // Em background: não marcar como vista — o push remoto (se existir) mostra;
-  // se falhar, o banner local aparece ao voltar ao app.
-  if (!options?.appInForeground) return 0;
+  // Se o SO já mostrou o push remoto deste id, não repetir local.
+  let alreadyPresented = new Set<string>();
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    for (const entry of presented) {
+      const data = entry.request.content.data as Record<string, unknown> | undefined;
+      const raw = data?.notificationId ?? data?.id;
+      if (typeof raw === 'string' && raw.trim()) alreadyPresented.add(raw.trim());
+    }
+  } catch {
+    alreadyPresented = new Set();
+  }
 
   for (const item of toShow) seen.add(item.id);
   await saveSeenNotificationIds(seen);
@@ -287,6 +299,7 @@ export async function announceNewInboxNotifications(
 
   let shown = 0;
   for (const item of toShow) {
+    if (alreadyPresented.has(item.id)) continue;
     await presentLocalNotification(item);
     shown += 1;
   }

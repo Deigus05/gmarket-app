@@ -1,12 +1,26 @@
-// components/LocalizacaoModal.tsx - PARTE 1
+// components/LocalizacaoModal.tsx
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Dimensions, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import {
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
+import SafeMapView from '@/components/SafeMapView';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { getSavedAddresses, setSavedAddresses } from '@/lib/savedAddresses';
 
@@ -52,37 +66,31 @@ interface LocalizacaoModalProps {
   onSelecionarEndereco: (endereco: string) => void;
 }
 
-// Verifique se a linha 18 do arquivo LocalizacaoModal.tsx começa exatamente desse jeito:
 export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndereco }: LocalizacaoModalProps) {
+  const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { ui } = useAppTheme();
   const styles = useMemo(() => createStyles(ui), [ui]);
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
-  const [telaAtual, setTelaAtual] = useState<'lista' | 'mapa'>('lista'); // Alterna entre ver a lista ou o mapa
-  const [mapReady, setMapReady] = useState(false);
+  const [telaAtual, setTelaAtual] = useState<'lista' | 'mapa'>('lista');
   const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
   const [enderecoDoMapa, setEnderecoDoMapa] = useState('');
   const mapRef = useRef<MapView>(null);
 
-  // Android: MapView dentro de Modal fica em branco se montar no mesmo frame do layout
-  useEffect(() => {
-    if (!visivel || telaAtual !== 'mapa') {
-      setMapReady(false);
-      return;
-    }
-    const timer = setTimeout(() => setMapReady(true), Platform.OS === 'android' ? 250 : 0);
-    return () => clearTimeout(timer);
-  }, [visivel, telaAtual]);
-
-  // ESTADOS DO NOVO ENDEREÇO
   const labelOptions = [t('common.home'), t('common.work'), t('common.other')];
   const [label, setLabel] = useState(t('common.other'));
   const [bairro, setBairro] = useState('');
   const [descricao, setDescricao] = useState('');
-  
-  // COORDENADAS PADRÃO INICIAIS DE BISSAU PARA O MAPA
   const [regiao, setRegion] = useState(BISSAU_REGION);
+
+  // Ao fechar, volta à lista — evita reabrir já no mapa (MapView) no Android.
+  useEffect(() => {
+    if (visivel) return;
+    setTelaAtual('lista');
+    setBuscandoLocalizacao(false);
+    setEnderecoDoMapa('');
+  }, [visivel]);
 
   useEffect(() => {
     if (!visivel) return;
@@ -190,7 +198,7 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
 
   const handleSalvarEndereco = () => {
     if (!bairro || !descricao) {
-      alert(t('locationModal.fillError'));
+      Alert.alert(t('locationModal.fillError'));
       return;
     }
 
@@ -202,37 +210,44 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
 
     void persistAddresses([novoEnd, ...addresses]);
     setTelaAtual('lista');
-    
-    // Limpar campos
+
     setBairro('');
     setDescricao('');
   };
-// components/LocalizacaoModal.tsx - PARTE 2
+
+  const handleClose = () => {
+    setTelaAtual('lista');
+    onFechar();
+  };
 
   return (
-    <Modal visible={visivel} animationType="slide" transparent={false}>
-      <View style={styles.modalContainer}>
-        
-        {/* TELA 1: LISTA DE ENDEREÇOS SALVOS */}
+    <Modal
+      visible={visivel}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={handleClose}
+      statusBarTranslucent={Platform.OS === 'android'}
+    >
+      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 16) }]}>
+
         {telaAtual === 'lista' && (
           <View style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={onFechar}>
+              <TouchableOpacity onPress={handleClose} hitSlop={12}>
                 <Ionicons name="close" size={24} color={ui.text} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{t('locationModal.title')}</Text>
               <View style={{ width: 24 }} />
             </View>
 
-            {/* Listagem de Endereços */}
             <FlatList
               data={addresses}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: 16 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
               ListHeaderComponent={(
                 <TouchableOpacity
                   style={[styles.currentLocationButton, buscandoLocalizacao && styles.disabledButton]}
-                  onPress={() => buscarLocalizacaoAtual(true)}
+                  onPress={() => void buscarLocalizacaoAtual(true)}
                   disabled={buscandoLocalizacao}
                 >
                   {buscandoLocalizacao
@@ -244,11 +259,11 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
                 </TouchableOpacity>
               )}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.addressCard} 
+                <TouchableOpacity
+                  style={styles.addressCard}
                   onPress={() => {
                     onSelecionarEndereco(`${item.label}: ${item.details}`);
-                    onFechar();
+                    handleClose();
                   }}
                 >
                   <Ionicons name={item.label === t('common.home') ? 'home-outline' : item.label === t('common.work') ? 'briefcase-outline' : 'location-outline'} size={20} color={ui.brand} />
@@ -261,55 +276,46 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
               )}
             />
 
-            {/* Botão para abrir o Mapa e adicionar novo */}
-            <TouchableOpacity style={styles.addAddressButton} onPress={() => setTelaAtual('mapa')}>
+            <TouchableOpacity
+              style={[styles.addAddressButton, { marginBottom: Math.max(insets.bottom, 16) }]}
+              onPress={() => setTelaAtual('mapa')}
+            >
               <Ionicons name="add-circle-outline" size={20} color="#FFF" />
               <Text style={styles.addAddressButtonText}>{t('locationModal.addNew')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* TELA 2: MAPA INTERATIVO E FORMULÁRIO */}
         {telaAtual === 'mapa' && (
           <View style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setTelaAtual('lista')}>
+              <TouchableOpacity onPress={() => setTelaAtual('lista')} hitSlop={12}>
                 <Ionicons name="arrow-back" size={24} color={ui.text} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{t('locationModal.markOnMap')}</Text>
               <View style={{ width: 24 }} />
             </View>
 
-            {/* O MAPA REAL EM BISSAU */}
             <View style={styles.mapWrapper} collapsable={false}>
-              {mapReady ? (
-                <MapView
-                  ref={mapRef}
-                  key="localizacao-map"
-                  style={styles.map}
-                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                  initialRegion={regiao}
-                  onPress={(event) => handleMapPress(event.nativeEvent.coordinate)}
-                  showsUserLocation
-                  showsMyLocationButton={false}
-                >
-                  <Marker
-                    coordinate={{ latitude: regiao.latitude, longitude: regiao.longitude }}
-                    title={t('locationModal.marker')}
-                    draggable
-                    onDragEnd={(event) => handleMapPress(event.nativeEvent.coordinate)}
-                  />
-                </MapView>
-              ) : (
-                <View style={[styles.map, styles.mapPlaceholder]}>
-                  <RippleWaveLoader size="small" color={ui.brand} />
-                </View>
-              )}
+              <SafeMapView
+                ref={mapRef}
+                key="localizacao-map"
+                style={styles.map}
+                initialRegion={regiao}
+                onPress={(event) => void handleMapPress(event.nativeEvent.coordinate)}
+                loaderColor={ui.brand}
+              >
+                <Marker
+                  coordinate={{ latitude: regiao.latitude, longitude: regiao.longitude }}
+                  title={t('locationModal.marker')}
+                  draggable
+                  onDragEnd={(event) => void handleMapPress(event.nativeEvent.coordinate)}
+                />
+              </SafeMapView>
 
-              {/* BOTÃO FLUTUANTE DA LOCALIZAÇÃO ATUAL */}
               <TouchableOpacity
                 style={[styles.gpsButton, buscandoLocalizacao && styles.disabledButton]}
-                onPress={() => buscarLocalizacaoAtual()}
+                onPress={() => void buscarLocalizacaoAtual()}
                 disabled={buscandoLocalizacao}
               >
                 {buscandoLocalizacao
@@ -318,8 +324,12 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
               </TouchableOpacity>
             </View>
 
-            {/* FORMULÁRIO DE INFRAESTRUTURA EMBAIXO DO MAPA */}
-            <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.formContainer}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }}
+              keyboardShouldPersistTaps="handled"
+            >
               <Text style={styles.mapHint}>{t('locationModal.mapHint')}</Text>
               {!!enderecoDoMapa && <Text style={styles.resolvedAddress}>{enderecoDoMapa}</Text>}
               <Text style={styles.label}>{t('locationModal.saveAs')}</Text>
@@ -332,10 +342,23 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
               </View>
 
               <Text style={styles.label}>{t('locationModal.neighborhood')}</Text>
-              <TextInput style={styles.input} placeholder={t('address.neighborhoodPlaceholder')} value={bairro} onChangeText={setBairro} />
+              <TextInput
+                style={styles.input}
+                placeholder={t('address.neighborhoodPlaceholder')}
+                placeholderTextColor={ui.muted}
+                value={bairro}
+                onChangeText={setBairro}
+              />
 
               <Text style={styles.label}>{t('locationModal.houseDescription')}</Text>
-              <TextInput style={styles.input} placeholder={t('address.housePlaceholder')} value={descricao} onChangeText={setDescricao} multiline />
+              <TextInput
+                style={styles.input}
+                placeholder={t('address.housePlaceholder')}
+                placeholderTextColor={ui.muted}
+                value={descricao}
+                onChangeText={setDescricao}
+                multiline
+              />
 
               <TouchableOpacity style={styles.submitButton} onPress={handleSalvarEndereco}>
                 <Text style={styles.submitButtonText}>{t('locationModal.confirm')}</Text>
@@ -351,7 +374,7 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
 
 function createStyles(ui: AppUI) {
   return StyleSheet.create({
-    modalContainer: { flex: 1, backgroundColor: ui.bg, paddingTop: 50 },
+    modalContainer: { flex: 1, backgroundColor: ui.bg },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: ui.border },
     modalTitle: { fontSize: 17, fontWeight: 'bold', color: ui.text },
     addressCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: ui.divider },
@@ -361,11 +384,10 @@ function createStyles(ui: AppUI) {
     currentLocationButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: ui.brandSoft, borderRadius: 12, marginBottom: 12, paddingHorizontal: 16 },
     currentLocationButtonText: { color: ui.brand, fontSize: 14, fontWeight: 'bold', marginLeft: 8 },
     disabledButton: { opacity: 0.6 },
-    addAddressButton: { flexDirection: 'row', backgroundColor: ui.brand, margin: 16, padding: 14, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    addAddressButton: { flexDirection: 'row', backgroundColor: ui.brand, marginHorizontal: 16, marginTop: 8, padding: 14, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     addAddressButtonText: { color: '#FFF', fontSize: 15, fontWeight: 'bold', marginLeft: 6 },
     mapWrapper: { width: '100%', height: height * 0.35, position: 'relative', backgroundColor: ui.input, overflow: 'hidden' },
     map: { width: '100%', height: '100%' },
-    mapPlaceholder: { alignItems: 'center', justifyContent: 'center' },
     gpsButton: { position: 'absolute', bottom: 16, right: 16, backgroundColor: ui.card, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3, elevation: 3 },
     formContainer: { padding: 16, flex: 1 },
     mapHint: { fontSize: 12, color: ui.muted, marginBottom: 8 },

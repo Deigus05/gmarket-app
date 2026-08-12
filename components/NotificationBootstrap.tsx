@@ -127,6 +127,9 @@ export function NotificationBootstrap() {
             }
           }
         })();
+      } else if (state === 'background' || state === 'inactive') {
+        // Último sync antes do SO suspender o JS — cobre 2.º plano sem push remoto.
+        void syncInbox(false);
       }
     };
     const appSub = AppState.addEventListener('change', onAppState);

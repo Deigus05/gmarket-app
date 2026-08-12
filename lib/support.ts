@@ -80,3 +80,25 @@ export async function openSupportWhatsApp(prefill?: string): Promise<boolean> {
   const phone = await getSupportWhatsApp();
   return openWhatsAppTo(phone, prefill);
 }
+
+/** Formata dígitos E.164 para mostrar ao utilizador (ex.: +245 955…). */
+export function formatSupportPhoneDisplay(digits: string): string {
+  const d = String(digits || '').replace(/[^\d]/g, '');
+  if (!d) return '';
+  if (d.startsWith('245') && d.length >= 9) {
+    return `+245 ${d.slice(3)}`;
+  }
+  return `+${d}`;
+}
+
+/** Liga para o número de suporte (WhatsApp / telefone da plataforma). */
+export async function openSupportCall(): Promise<boolean> {
+  const phone = await getSupportWhatsApp();
+  if (!phone) return false;
+  try {
+    await Linking.openURL(`tel:+${phone}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
