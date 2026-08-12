@@ -193,11 +193,13 @@ export function isSupportNotification(
 export async function presentLocalNotification(item: AppNotification) {
   await ensureAndroidChannel();
   await Notifications.scheduleNotificationAsync({
+    identifier: `inbox-${item.id}`,
     content: {
       title: item.title,
       body: item.body,
       data: {
         type: item.type,
+        notificationId: item.id,
         screen: item.type === 'support_message' ? 'support' : undefined,
         ...(item.data || {}),
       },
@@ -230,11 +232,9 @@ export async function saveSeenNotificationIds(ids: Set<string>) {
 
 /**
  * Mostra no telemóvel alertas locais para notificações novas da inbox.
- * - Push remoto ativo: só marca como vistas (o SO já mostrou / vai mostrar o push).
- * - Sem push remoto: alerta local no foreground; em background NÃO marca como vista
- *   (para o banner aparecer ao voltar ao app).
- * - bootstrap: só na 1.ª vez (seen vazio) — evita spam do histórico; não engole
- *   notificações que chegaram com o app fechado.
+ * Nunca depende só do push remoto: em Sideloadly / builds sem APNs o push falha
+ * e o utilizador ficava sem banner. Em foreground mostramos sempre o que ainda
+ * não foi anunciado; identifier estável evita duplicar o mesmo id.
  */
 export async function announceNewInboxNotifications(
   items: AppNotification[],
@@ -258,7 +258,6 @@ export async function announceNewInboxNotifications(
   const supportOnly: AppNotification[] = [];
   for (const item of unread) {
     if (seen.has(item.id)) continue;
-    // Suporte: marca como visto sem banner local (badge do chat cuida disso).
     if (isSupportNotification(item)) {
       supportOnly.push(item);
       continue;
@@ -273,19 +272,8 @@ export async function announceNewInboxNotifications(
 
   if (!toShow.length) return 0;
 
-  const remoteActive = await isRemotePushActive();
-
-  // Push remoto cobre background/terminated — evita banner local duplicado.
-  // Em foreground o NotificationHandler já mostra o push remoto.
-  if (remoteActive) {
-    for (const item of toShow) seen.add(item.id);
-    await saveSeenNotificationIds(seen);
-    await markTicketConfirmedAnnounced(toShow);
-    return 0;
-  }
-
-  // Sem push remoto: só alertar com o app em primeiro plano.
-  // Em background NÃO marcar como vista — senão o alerta nunca aparece.
+  // Em background: não marcar como vista — o push remoto (se existir) mostra;
+  // se falhar, o banner local aparece ao voltar ao app.
   if (!options?.appInForeground) return 0;
 
   for (const item of toShow) seen.add(item.id);
@@ -298,6 +286,20 @@ export async function announceNewInboxNotifications(
     shown += 1;
   }
   return shown;
+}
+
+/** Marca ids já mostrados pelo SO (push remoto recebido) para não repetir local. */
+export async function markNotificationsAnnounced(ids: string[]) {
+  if (!ids.length) return;
+  const seen = await loadSeenNotificationIds();
+  let changed = false;
+  for (const id of ids) {
+    const key = String(id || '').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    changed = true;
+  }
+  if (changed) await saveSeenNotificationIds(seen);
 }
 
 async function markTicketConfirmedAnnounced(items: AppNotification[]) {

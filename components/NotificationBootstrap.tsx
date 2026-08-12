@@ -11,12 +11,19 @@ import {
   announceNewInboxNotifications,
   clearPresentedNotifications,
   ensureAndroidChannel,
+  markNotificationsAnnounced,
   registerForPushNotificationsAsync,
   resolveNotificationRoute,
 } from '@/components/notifications';
 
 const PUSH_PREF_KEY = '@gmarket:push_notifications';
 const POLL_MS = 8000;
+
+function extractNotificationId(data: Record<string, unknown> | undefined | null): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const raw = data.notificationId ?? data.id;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
 
 /** Regista permissões/push, faz poll da inbox e mostra alertas no telemóvel. */
 export function NotificationBootstrap() {
@@ -85,7 +92,7 @@ export function NotificationBootstrap() {
     const onAppState = (state: AppStateStatus) => {
       appInForeground.current = state === 'active';
       if (state === 'active') {
-        // Re-regista token (pode ter mudado) e anuncia o que chegou com o app fechado.
+        // Re-regista token e anuncia o que chegou com o app fechado.
         void (async () => {
           const pref = await AsyncStorage.getItem(PUSH_PREF_KEY);
           if (pref === '0' || cancelled) return;
@@ -97,16 +104,23 @@ export function NotificationBootstrap() {
     };
     const appSub = AppState.addEventListener('change', onAppState);
 
+    // Push remoto recebido (foreground ou background) → não repetir com alerta local.
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as Record<string, unknown> | undefined;
+      const id = extractNotificationId(data);
+      if (id) void markNotificationsAnnounced([id]);
+    });
+
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
       appSub.remove();
+      receivedSub.remove();
     };
   }, [isLoggedIn, token, user?.id]);
 
   useEffect(() => {
     const openFromData = (data: Record<string, unknown> | undefined) => {
-      // Chat (suporte / direto) nunca abre a página de notificações.
       const target = resolveNotificationRoute(data);
       if (!target) return;
       if (target.pathname === '/(tabs)') {
