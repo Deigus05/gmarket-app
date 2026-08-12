@@ -40,6 +40,10 @@ workflows:
             fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
           }
           NODE
+      - name: Configure Firebase (FCM push em background)
+        script: |
+          set -euo pipefail
+          node scripts/prepare-push-android.mjs
       - name: Generate Android native project
         script: |
           set -euo pipefail

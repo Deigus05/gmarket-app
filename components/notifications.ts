@@ -142,7 +142,7 @@ export async function registerForPushNotificationsAsync(
 
     await AsyncStorage.setItem(PUSH_TOKEN_DEVICE_KEY, expoToken);
     await AsyncStorage.setItem(REMOTE_PUSH_ACTIVE_KEY, '1');
-    console.log('Expo push token registado.');
+    console.log('Expo push token registado:', expoToken.slice(0, 28) + '…');
     return { permission: true, pushToken: expoToken };
   } catch (error) {
     console.log('Push registration skipped:', error);
