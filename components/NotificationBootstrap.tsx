@@ -35,7 +35,7 @@ export function NotificationBootstrap() {
   const appInForeground = useRef(AppState.currentState === 'active');
 
   useEffect(() => {
-    const sessionKey = isLoggedIn && token && user?.id ? `${user.id}:${token}` : null;
+    const sessionKey = isLoggedIn && user?.id ? user.id : null;
 
     const authToken = token;
     if (!sessionKey || !authToken) {
@@ -89,6 +89,18 @@ export function NotificationBootstrap() {
       }, POLL_MS);
     })();
 
+    const syncPresentedNotificationIds = async () => {
+      try {
+        const presented = await Notifications.getPresentedNotificationsAsync();
+        const ids = presented
+          .map((item) => extractNotificationId(item.request.content.data as Record<string, unknown>))
+          .filter((id): id is string => Boolean(id));
+        if (ids.length) await markNotificationsAnnounced(ids);
+      } catch {
+        // ignore
+      }
+    };
+
     const onAppState = (state: AppStateStatus) => {
       appInForeground.current = state === 'active';
       if (state === 'active') {
@@ -98,6 +110,7 @@ export function NotificationBootstrap() {
           if (pref === '0' || cancelled) return;
           await registerForPushNotificationsAsync(authToken);
           if (cancelled) return;
+          await syncPresentedNotificationIds();
           await syncInbox(false);
         })();
       }

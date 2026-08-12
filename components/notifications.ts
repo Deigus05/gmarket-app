@@ -137,7 +137,9 @@ export async function registerForPushNotificationsAsync(
     if (!registered.success) {
       console.log('Falha ao registar push token no servidor:', registered.message);
       await AsyncStorage.removeItem(REMOTE_PUSH_ACTIVE_KEY).catch(() => undefined);
-      return { permission: true, pushToken: null };
+      // Mantém token local para retry — antes o servidor podia apagar tokens válidos.
+      await AsyncStorage.setItem(PUSH_TOKEN_DEVICE_KEY, expoToken);
+      return { permission: true, pushToken: expoToken };
     }
 
     await AsyncStorage.setItem(PUSH_TOKEN_DEVICE_KEY, expoToken);
