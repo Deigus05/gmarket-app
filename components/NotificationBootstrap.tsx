@@ -13,6 +13,7 @@ import {
   ensureAndroidChannel,
   markNotificationsAnnounced,
   registerForPushNotificationsAsync,
+  releaseDeliveryNotificationsForCatchUp,
   resolveNotificationRoute,
 } from '@/components/notifications';
 
@@ -111,24 +112,29 @@ export function NotificationBootstrap() {
           await registerForPushNotificationsAsync(authToken);
           if (cancelled) return;
           await syncPresentedNotificationIds();
-          await syncInbox(false);
+          const inbox = await getMyNotifications(authToken, 30);
+          if (inbox.success && !cancelled) {
+            await releaseDeliveryNotificationsForCatchUp(inbox.data);
+            await announceNewInboxNotifications(inbox.data, {
+              bootstrap: false,
+              appInForeground: true,
+            });
+            bootstrappedInbox.current = true;
+            const hasDeliveryUpdate = inbox.data.some((item) => item.type === 'delivery_status');
+            if (hasDeliveryUpdate) {
+              const orders = await getMyOrders(authToken);
+              if (orders.success) await syncDeliveryLiveActivities(orders.data);
+            }
+          }
         })();
       }
     };
     const appSub = AppState.addEventListener('change', onAppState);
 
-    // Push remoto recebido (foreground ou background) → não repetir com alerta local.
-    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as Record<string, unknown> | undefined;
-      const id = extractNotificationId(data);
-      if (id) void markNotificationsAnnounced([id]);
-    });
-
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
       appSub.remove();
-      receivedSub.remove();
     };
   }, [isLoggedIn, token, user?.id]);
 

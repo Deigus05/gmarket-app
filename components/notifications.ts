@@ -248,12 +248,15 @@ export async function announceNewInboxNotifications(
   const unread = items.filter((item) => !item.read_at);
   const seen = await loadSeenNotificationIds();
 
-  // Seed inicial: utilizador novo / sem histórico local — não spammar o histórico.
+  // Seed inicial: histórico antigo — não spammar. Entrega fica de fora (sempre alertar).
   if (options?.bootstrap && seen.size === 0) {
-    for (const item of unread) seen.add(item.id);
+    for (const item of unread) {
+      if (item.type === 'delivery_status') continue;
+      seen.add(item.id);
+    }
     await saveSeenNotificationIds(seen);
     await markTicketConfirmedAnnounced(unread);
-    return 0;
+    if (!options?.appInForeground) return 0;
   }
 
   const toShow: AppNotification[] = [];
@@ -288,6 +291,41 @@ export async function announceNewInboxNotifications(
     shown += 1;
   }
   return shown;
+}
+
+/** Permite re-mostrar entregas marcadas como vistas sem banner (regressão push/poll). */
+export async function releaseDeliveryNotificationsForCatchUp(items: AppNotification[]) {
+  const userId = await getActiveAccountId();
+  if (!userId) return;
+
+  const seen = await loadSeenNotificationIds();
+  let catchUpDone = new Set<string>();
+  try {
+    const raw = await getAccountItem(AccountDataKey.deliveryCatchUpDone);
+    const parsed = raw ? JSON.parse(raw) : [];
+    catchUpDone = new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    // ignore
+  }
+
+  let seenChanged = false;
+  let catchUpChanged = false;
+  for (const item of items) {
+    if (item.type !== 'delivery_status' || item.read_at) continue;
+    if (!seen.has(item.id) || catchUpDone.has(item.id)) continue;
+    seen.delete(item.id);
+    catchUpDone.add(item.id);
+    seenChanged = true;
+    catchUpChanged = true;
+  }
+
+  if (seenChanged) await saveSeenNotificationIds(seen);
+  if (catchUpChanged) {
+    await setAccountItem(
+      AccountDataKey.deliveryCatchUpDone,
+      JSON.stringify([...catchUpDone].slice(-100)),
+    );
+  }
 }
 
 /** Marca ids já mostrados pelo SO (push remoto recebido) para não repetir local. */
