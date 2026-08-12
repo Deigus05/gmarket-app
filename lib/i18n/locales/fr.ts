@@ -592,6 +592,10 @@ const fr: TranslationKeys = {
     whereDeliverNamed: '{name}, où devons-nous livrer ?',
     whereDeliver: 'Où devons-nous livrer ?',
     mapHint: 'Touchez la carte ou faites glisser le marqueur pour ajuster.',
+    formOnlyHint:
+      'Indiquez le quartier et la description de la maison. Vous pouvez utiliser le GPS pour remplir la localisation automatiquement.',
+    useGps: 'Utiliser le GPS',
+    coordsReady: 'Localisation capturée ({lat}, {lng})',
     saveAs: 'Enregistrer comme',
     neighborhood: 'Quartier / Zone',
     neighborhoodPlaceholder: 'Ex. : Cupelum, Penha, Militar',
@@ -615,6 +619,10 @@ const fr: TranslationKeys = {
     markOnMap: 'Marquer sur la carte',
     marker: 'Votre livraison ici',
     mapHint: 'Touchez la carte ou faites glisser le marqueur pour ajuster le lieu.',
+    formOnlyHint:
+      'Indiquez le quartier et la description de la maison. Vous pouvez utiliser le GPS pour remplir la localisation automatiquement.',
+    useGps: 'Utiliser le GPS',
+    coordsReady: 'Localisation capturée ({lat}, {lng})',
     saveAs: 'Enregistrer comme :',
     neighborhood: 'Quartier / Zone de Bissau',
     houseDescription: 'Description de la maison / infos importantes',

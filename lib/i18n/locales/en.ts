@@ -592,6 +592,10 @@ const en: TranslationKeys = {
     whereDeliverNamed: '{name}, where should we deliver?',
     whereDeliver: 'Where should we deliver?',
     mapHint: 'Tap the map or drag the marker to adjust.',
+    formOnlyHint:
+      'Enter the neighbourhood and house description. You can use GPS to fill the location automatically.',
+    useGps: 'Use GPS to fill',
+    coordsReady: 'Location captured ({lat}, {lng})',
     saveAs: 'Save as',
     neighborhood: 'Neighborhood / Area',
     neighborhoodPlaceholder: 'e.g. Cupelum, Penha, Militar',
@@ -615,6 +619,10 @@ const en: TranslationKeys = {
     markOnMap: 'Mark on map',
     marker: 'Your delivery here',
     mapHint: 'Tap the map or drag the marker to adjust the location.',
+    formOnlyHint:
+      'Enter the neighbourhood and house description. You can use GPS to fill the location automatically.',
+    useGps: 'Use GPS to fill',
+    coordsReady: 'Location captured ({lat}, {lng})',
     saveAs: 'Save as:',
     neighborhood: 'Bissau neighborhood / area',
     houseDescription: 'House description / important info',

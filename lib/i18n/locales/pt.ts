@@ -594,6 +594,10 @@ const pt = {
     whereDeliverNamed: '{name}, onde devemos entregar?',
     whereDeliver: 'Onde devemos entregar?',
     mapHint: 'Toque no mapa ou arraste o marcador para ajustar.',
+    formOnlyHint:
+      'Indique o bairro e a descrição da casa. Pode usar o GPS para preencher a localização automaticamente.',
+    useGps: 'Usar GPS para preencher',
+    coordsReady: 'Localização capturada ({lat}, {lng})',
     saveAs: 'Salvar como',
     neighborhood: 'Bairro / Zona',
     neighborhoodPlaceholder: 'Ex: Cupelum, Penha, Militar',
@@ -617,6 +621,10 @@ const pt = {
     markOnMap: 'Marcar no Mapa',
     marker: 'Sua entrega aqui',
     mapHint: 'Toque no mapa ou arraste o marcador para ajustar o local.',
+    formOnlyHint:
+      'Indique o bairro e a descrição da casa. Pode usar o GPS para preencher a localização automaticamente.',
+    useGps: 'Usar GPS para preencher',
+    coordsReady: 'Localização capturada ({lat}, {lng})',
     saveAs: 'Salvar como:',
     neighborhood: 'Bairro / Zona de Bissau',
     houseDescription: 'Descrição da Casa / Informações Importantes',

@@ -25,6 +25,9 @@ import { resolvePostAuthHref } from '@/lib/navigation';
 
 const { height } = Dimensions.get('window');
 
+/** MapView nativo crasha em vários Androids (New Arch / key / Modal). */
+const USE_NATIVE_MAP = Platform.OS !== 'android';
+
 const BISSAU_REGION = {
   latitude: 11.8632,
   longitude: -15.5841,
@@ -125,7 +128,9 @@ export default function AdicionarEnderecoScreen() {
       await reverseGeocode(coordinate);
       const nextRegion = { ...coordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 };
       setRegion(nextRegion);
-      mapRef.current?.animateToRegion(nextRegion, 600);
+      if (USE_NATIVE_MAP) {
+        mapRef.current?.animateToRegion(nextRegion, 600);
+      }
     } catch {
       Alert.alert(t('address.locateFailTitle'), t('address.locateFailMessage'));
     } finally {
@@ -194,30 +199,57 @@ export default function AdicionarEnderecoScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.mapWrapper} collapsable={false}>
-          <SafeMapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={regiao}
-            onPress={(event) => void handleMapPress(event.nativeEvent.coordinate)}
-            loaderColor={ui.brand}
-          >
-            <Marker
-              coordinate={{ latitude: regiao.latitude, longitude: regiao.longitude }}
-              draggable
-              onDragEnd={(event) => void handleMapPress(event.nativeEvent.coordinate)}
-            />
-          </SafeMapView>
-          <TouchableOpacity
-            style={[styles.gpsButton, buscandoLocalizacao && styles.disabled]}
-            onPress={() => void buscarLocalizacaoAtual()}
-            disabled={buscandoLocalizacao}
-          >
-            {buscandoLocalizacao
-              ? <RippleWaveLoader size="small" color={ui.brand} />
-              : <Ionicons name="locate" size={22} color={ui.brand} />}
-          </TouchableOpacity>
-        </View>
+        {USE_NATIVE_MAP ? (
+          <View style={styles.mapWrapper} collapsable={false}>
+            <SafeMapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={regiao}
+              onPress={(event) => void handleMapPress(event.nativeEvent.coordinate)}
+              loaderColor={ui.brand}
+            >
+              <Marker
+                coordinate={{ latitude: regiao.latitude, longitude: regiao.longitude }}
+                draggable
+                onDragEnd={(event) => void handleMapPress(event.nativeEvent.coordinate)}
+              />
+            </SafeMapView>
+            <TouchableOpacity
+              style={[styles.gpsButton, buscandoLocalizacao && styles.disabled]}
+              onPress={() => void buscarLocalizacaoAtual()}
+              disabled={buscandoLocalizacao}
+            >
+              {buscandoLocalizacao
+                ? <RippleWaveLoader size="small" color={ui.brand} />
+                : <Ionicons name="locate" size={22} color={ui.brand} />}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.formOnlyBanner}>
+            <Ionicons name="navigate-circle-outline" size={28} color={ui.brand} />
+            <Text style={styles.formOnlyText}>{t('address.formOnlyHint')}</Text>
+            <TouchableOpacity
+              style={[styles.gpsInlineBtn, buscandoLocalizacao && styles.disabled]}
+              onPress={() => void buscarLocalizacaoAtual()}
+              disabled={buscandoLocalizacao}
+            >
+              {buscandoLocalizacao
+                ? <RippleWaveLoader size="small" color={ui.brand} />
+                : <Ionicons name="locate" size={20} color={ui.brand} />}
+              <Text style={styles.gpsInlineText}>
+                {buscandoLocalizacao ? t('locationModal.locating') : t('address.useGps')}
+              </Text>
+            </TouchableOpacity>
+            {!!enderecoDoMapa && (
+              <Text style={styles.resolved}>
+                {t('address.coordsReady', {
+                  lat: regiao.latitude.toFixed(5),
+                  lng: regiao.longitude.toFixed(5),
+                })}
+              </Text>
+            )}
+          </View>
+        )}
 
         <ScrollView
           style={styles.form}
@@ -225,7 +257,7 @@ export default function AdicionarEnderecoScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.hint}>{t('address.mapHint')}</Text>
+          {USE_NATIVE_MAP ? <Text style={styles.hint}>{t('address.mapHint')}</Text> : null}
           {!!enderecoDoMapa && <Text style={styles.resolved}>{enderecoDoMapa}</Text>}
 
           <Text style={styles.label}>{t('address.saveAs')}</Text>
@@ -321,6 +353,30 @@ function createStyles(ui: AppUI) {
       justifyContent: 'center',
       elevation: 3,
     },
+    formOnlyBanner: {
+      marginHorizontal: 16,
+      marginBottom: 4,
+      padding: 16,
+      borderRadius: 14,
+      backgroundColor: ui.brandSoft,
+      borderWidth: 1,
+      borderColor: ui.border,
+      gap: 12,
+    },
+    formOnlyText: { fontSize: 13, color: ui.text, lineHeight: 19 },
+    gpsInlineBtn: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: ui.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: ui.border,
+      paddingHorizontal: 14,
+      gap: 8,
+    },
+    gpsInlineText: { color: ui.brand, fontSize: 14, fontWeight: '700' },
     form: { flex: 1, paddingHorizontal: 16, paddingTop: 14 },
     hint: { fontSize: 12, color: ui.muted, marginBottom: 8 },
     resolved: {
