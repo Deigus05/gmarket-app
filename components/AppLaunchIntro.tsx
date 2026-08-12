@@ -1,23 +1,20 @@
 import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import FocusReveal from '@/components/FocusReveal';
+
 const TAGLINE = 'Você merece os melhores produtos!';
 const FADE_OUT_MS = 420;
-const LOGO_FADE_MS = 380;
-const TEXT_FADE_MS = 520;
-const TEXT_DELAY_MS = 280;
-const HOLD_MS = 900;
 /** Se a animação/Reanimated falhar (ex.: IPA Sideloadly), não ficar preso no splash. */
 const INTRO_SAFETY_MS = 4500;
 
@@ -27,21 +24,22 @@ type AppLaunchIntroProps = {
 };
 
 /**
- * Intro estável: logo + frase com fade simples.
- * Sem vibração por letra / scale (causava “tremor” ao abrir o app).
+ * Intro: logo estático + frase com FocusReveal (vibração por letra).
+ * Esconde o splash nativo só depois do overlay branco estar no ecrã —
+ * evita o “apagão” rápido entre splash e intro.
  */
 export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroProps) {
   const insets = useSafeAreaInsets();
-  const overlayOpacity = useSharedValue(1);
-  const logoOpacity = useSharedValue(0);
-  const textOpacity = useSharedValue(0);
+  const opacity = useSharedValue(1);
   const [textDone, setTextDone] = useState(false);
   const finishedRef = React.useRef(false);
+  const splashHiddenRef = React.useRef(false);
 
-  useEffect(() => {
-    if (!visible) return;
+  const hideNativeSplash = useCallback(() => {
+    if (splashHiddenRef.current) return;
+    splashHiddenRef.current = true;
     void SplashScreen.hideAsync().catch(() => undefined);
-  }, [visible]);
+  }, []);
 
   const finish = useCallback(() => {
     if (finishedRef.current) return;
@@ -52,91 +50,58 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
   useEffect(() => {
     if (!visible) return;
     const timer = setTimeout(() => {
+      hideNativeSplash();
       finish();
     }, INTRO_SAFETY_MS);
     return () => clearTimeout(timer);
-  }, [visible, finish]);
-
-  useEffect(() => {
-    if (!visible) return;
-
-    finishedRef.current = false;
-    setTextDone(false);
-    overlayOpacity.value = 1;
-    logoOpacity.value = 0;
-    textOpacity.value = 0;
-
-    logoOpacity.value = withTiming(1, {
-      duration: LOGO_FADE_MS,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    textOpacity.value = withDelay(
-      TEXT_DELAY_MS,
-      withTiming(1, { duration: TEXT_FADE_MS, easing: Easing.out(Easing.cubic) }, (done) => {
-        if (done) runOnJS(setTextDone)(true);
-      }),
-    );
-
-    // Fallback se o callback do Reanimated não correr
-    const fallback = setTimeout(() => setTextDone(true), TEXT_DELAY_MS + TEXT_FADE_MS + 200);
-    return () => clearTimeout(fallback);
-  }, [visible, logoOpacity, textOpacity, overlayOpacity]);
+  }, [visible, finish, hideNativeSplash]);
 
   useEffect(() => {
     if (!textDone) return;
 
-    const hold = setTimeout(() => {
-      overlayOpacity.value = withTiming(
-        0,
-        { duration: FADE_OUT_MS, easing: Easing.out(Easing.cubic) },
-        (done) => {
-          if (done) runOnJS(finish)();
-        },
-      );
-    }, HOLD_MS);
-
-    const safety = setTimeout(() => finish(), HOLD_MS + FADE_OUT_MS + 400);
-    return () => {
-      clearTimeout(hold);
-      clearTimeout(safety);
-    };
-  }, [finish, overlayOpacity, textDone]);
+    opacity.value = withTiming(
+      0,
+      { duration: FADE_OUT_MS, easing: Easing.out(Easing.cubic) },
+      (done) => {
+        if (done) runOnJS(finish)();
+      },
+    );
+    const timer = setTimeout(() => finish(), FADE_OUT_MS + 400);
+    return () => clearTimeout(timer);
+  }, [finish, opacity, textDone]);
 
   const overlayStyle = useAnimatedStyle(() => ({
-    opacity: overlayOpacity.value,
-  }));
-  const logoStyle = useAnimatedStyle(() => ({
-    opacity: logoOpacity.value,
-  }));
-  const textStyle = useAnimatedStyle(() => ({
-    opacity: textOpacity.value,
+    opacity: opacity.value,
   }));
 
   if (!visible) return null;
 
   return (
-    <Animated.View pointerEvents="auto" style={[styles.overlay, overlayStyle]}>
+    <Animated.View
+      pointerEvents="auto"
+      style={[styles.overlay, overlayStyle]}
+      onLayout={hideNativeSplash}
+    >
       <View style={styles.center}>
-        <Animated.View style={logoStyle}>
-          <Image
-            source={require('../assets/images/gmarket-splash.png')}
-            style={styles.logo}
-            contentFit="contain"
-            accessibilityLabel="GMarket"
-          />
-        </Animated.View>
+        <Image
+          source={require('../assets/images/gmarket-splash.png')}
+          style={styles.logo}
+          contentFit="contain"
+          accessibilityLabel="GMarket"
+          onLoad={hideNativeSplash}
+        />
       </View>
 
-      <Animated.View
-        style={[
-          styles.bottom,
-          { paddingBottom: Math.max(insets.bottom, 16) + 28 },
-          textStyle,
-        ]}
-      >
-        <Text style={styles.tagline}>{TAGLINE}</Text>
-      </Animated.View>
+      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 16) + 28 }]}>
+        <FocusReveal
+          text={TAGLINE}
+          blur={20}
+          staggerFrom="start"
+          vibrate
+          style={styles.tagline}
+          onComplete={() => setTextDone(true)}
+        />
+      </View>
     </Animated.View>
   );
 }

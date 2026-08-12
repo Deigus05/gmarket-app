@@ -6,9 +6,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+
+import { Image } from 'expo-image';
 
 import AppLaunchIntro from '@/components/AppLaunchIntro';
 import { AuthProvider } from '@/components/AuthContext';
@@ -58,19 +60,19 @@ export default function RootLayout() {
     return () => clearTimeout(t1);
   }, []);
 
-  // Expo Router chama preventAutoHide; em Release Android o splash nativo
-  // podia ficar preso se o hide implícito falhasse (ex.: crash/hang na Home).
-  // Escondemos explicitamente assim que a UI pode montar.
+  // Sem intro: esconde splash assim que a UI monta.
+  // Com intro: o AppLaunchIntro esconde o splash só depois do overlay branco
+  // estar no ecrã (evita apagão entre splash nativo e a animação).
   useEffect(() => {
-    if (!appReady) return;
+    if (!appReady || SHOW_LAUNCH_INTRO) return;
     SplashScreen.hideAsync().catch(() => undefined);
   }, [appReady]);
 
-  // Rede de segurança: nunca deixar o splash nativo mais de ~3s.
+  // Rede de segurança: nunca deixar o splash nativo mais de ~4s.
   useEffect(() => {
     const safety = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => undefined);
-    }, 3000);
+    }, 4000);
     return () => clearTimeout(safety);
   }, []);
 
@@ -78,12 +80,21 @@ export default function RootLayout() {
     setIntroVisible(false);
   }, []);
 
+  // Placeholder branco + logo (não `null`) — evita frame preto enquanto as fontes carregam.
   if (!appReady) {
-    return null;
+    return (
+      <View style={styles.boot}>
+        <Image
+          source={require('../assets/images/gmarket-splash.png')}
+          style={styles.bootLogo}
+          contentFit="contain"
+        />
+      </View>
+    );
   }
 
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={[styles.root, introVisible ? styles.rootWhileIntro : null]}>
       <RootLayoutNav introDone={!introVisible} />
       {SHOW_LAUNCH_INTRO ? (
         <AppLaunchIntro visible={introVisible} onFinished={onIntroFinished} />
@@ -182,5 +193,18 @@ function ThemedNavigation() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  rootWhileIntro: {
+    backgroundColor: '#FFFFFF',
+  },
+  boot: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bootLogo: {
+    width: 280,
+    height: 280,
   },
 });
