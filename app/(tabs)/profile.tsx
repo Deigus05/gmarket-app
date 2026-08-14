@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
@@ -20,6 +22,9 @@ import { useAppTheme, type AppUI } from '@/components/tema';
 import { openSupportWhatsApp } from '@/lib/support';
 
 const PUSH_PREF_KEY = '@gmarket:push_notifications';
+
+const GUEST_BG_LIGHT = require('../../assets/images/profile-guest-bg-light.png');
+const GUEST_BG_DARK = require('../../assets/images/profile-guest-bg-dark.png');
 
 interface MenuItem {
   id: string;
@@ -43,12 +48,14 @@ function getInitials(nome: string, apelido: string) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { ui } = useAppTheme();
+  const { ui, isDark } = useAppTheme();
   const { t } = useLocale();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(ui), [ui]);
   const { user, token, loading, isLoggedIn, logout } = useAuth();
   const [pushNotifications, setPushNotifications] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const guestBg = isDark ? GUEST_BG_DARK : GUEST_BG_LIGHT;
 
   const menuSections: MenuSection[] = useMemo(
     () => [
@@ -154,63 +161,103 @@ export default function ProfileScreen() {
   }
 
   if (!isLoggedIn || !user) {
+    const guestMenu = [
+      {
+        id: 'tema',
+        name: t('profile.theme'),
+        icon: 'color-palette-outline' as const,
+        onPress: () => router.push('/tema'),
+      },
+      {
+        id: 'idioma',
+        name: t('profile.language'),
+        icon: 'language-outline' as const,
+        onPress: () => router.push('/idioma'),
+      },
+      {
+        id: 'ajuda',
+        name: t('profile.help'),
+        icon: 'help-circle-outline' as const,
+        onPress: () => router.push('/ajuda'),
+      },
+      {
+        id: 'suporte',
+        name: t('profile.talkSupport'),
+        icon: 'chatbubbles-outline' as const,
+        onPress: () => router.push('/chat'),
+      },
+    ];
+
     return (
-      <ScrollView style={styles.mainWrapper} contentContainerStyle={styles.guestContent}>
-        <View style={styles.guestCard}>
-          <View style={styles.guestIcon}>
-            <Ionicons name="person-outline" size={36} color={ui.brand} />
+      <View style={styles.guestScreen} collapsable={false}>
+        <ScrollView
+          style={styles.guestOverlay}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[
+            styles.guestOverlayContent,
+            {
+              paddingTop: Math.max(insets.top, 8) + 8,
+              paddingBottom: Math.max(insets.bottom, 8) + 24,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.guestSpacerTop} />
+
+          <View style={styles.guestMid}>
+            <View style={[styles.guestActions, isDark && styles.guestActionsDark]}>
+              <Pressable
+                style={[styles.authPill, isDark ? styles.authPillDark : styles.authPillLight]}
+                onPress={() => router.push('/login')}
+              >
+                <Text style={styles.authPillText}>{t('profile.login')}</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.authPill, isDark ? styles.authPillDark : styles.authPillLight]}
+                onPress={() => router.push('/register')}
+              >
+                <Text style={styles.authPillText}>{t('profile.createAccount')}</Text>
+              </Pressable>
+            </View>
+
+            <View style={[styles.guestSettingsWrap, isDark && styles.guestSettingsWrapDark]}>
+              <Text style={styles.sectionTitleGuest}>{t('profile.guestSettings')}</Text>
+              <View style={styles.guestSettingsCard}>
+                {guestMenu.map((item, index) => (
+                  <View key={item.id}>
+                    <TouchableOpacity
+                      style={styles.menuItem}
+                      activeOpacity={0.6}
+                      onPress={() => void item.onPress()}
+                    >
+                      <View style={styles.menuItemLeft}>
+                        <View style={styles.iconBox}>
+                          <Ionicons name={item.icon} size={20} color={ui.brand} />
+                        </View>
+                        <Text style={styles.menuItemText}>{item.name}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={ui.muted} />
+                    </TouchableOpacity>
+                    {index < guestMenu.length - 1 ? <View style={styles.divider} /> : null}
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.guestVersion}>{t('profile.version')}</Text>
+            </View>
           </View>
-          <Text style={styles.guestTitle}>{t('profile.guestTitle')}</Text>
-          <Text style={styles.guestSubtitle}>{t('profile.guestSubtitle')}</Text>
+        </ScrollView>
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => router.push('/login')}
-          >
-            <Text style={styles.primaryBtnText}>{t('profile.login')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={() => router.push('/register')}
-          >
-            <Text style={styles.secondaryBtnText}>{t('profile.createAccount')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitleGuest}>{t('profile.guestSettings')}</Text>
-        <View style={styles.guestSettingsCard}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.6}
-            onPress={() => router.push('/tema')}
-          >
-            <View style={styles.menuItemLeft}>
-              <View style={styles.iconBox}>
-                <Ionicons name="color-palette-outline" size={20} color={ui.brand} />
-              </View>
-              <Text style={styles.menuItemText}>{t('profile.theme')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={ui.muted} />
-          </TouchableOpacity>
-          <View style={styles.divider} />
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.6}
-            onPress={() => router.push('/idioma')}
-          >
-            <View style={styles.menuItemLeft}>
-              <View style={styles.iconBox}>
-                <Ionicons name="language-outline" size={20} color={ui.brand} />
-              </View>
-              <Text style={styles.menuItemText}>{t('profile.language')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={ui.muted} />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.versionText}>{t('profile.version')}</Text>
-      </ScrollView>
+        <Image
+          source={guestBg}
+          style={styles.guestBackground}
+          contentFit="cover"
+          contentPosition="top"
+          transition={200}
+          pointerEvents="none"
+        />
+      </View>
     );
   }
 
@@ -218,7 +265,11 @@ export default function ProfileScreen() {
   const genderLabel = user.genero === 'masculino' ? t('profile.male') : t('profile.female');
 
   return (
-    <ScrollView style={styles.mainWrapper} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.mainWrapper}
+      contentInsetAdjustmentBehavior="automatic"
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.profileHeaderCard}>
         <View style={styles.avatarWrapper}>
           {user.foto_url ? (
@@ -350,61 +401,79 @@ function createStyles(ui: AppUI) {
   return StyleSheet.create({
     mainWrapper: { flex: 1, backgroundColor: ui.bg, paddingTop: 60 },
     centered: { justifyContent: 'center', alignItems: 'center' },
-    guestContent: { paddingHorizontal: 16, paddingBottom: 120 },
-    guestCard: {
-      backgroundColor: ui.card,
+    guestScreen: {
+      flex: 1,
+      backgroundColor: ui.bg,
+      overflow: 'hidden',
+    },
+    guestBackground: {
+      ...StyleSheet.absoluteFillObject,
+      top: '-3%',
+      height: '103%',
+      zIndex: 0,
+    },
+    guestOverlay: {
+      flex: 1,
+      zIndex: 1,
+    },
+    guestOverlayContent: {
+      flexGrow: 1,
+      paddingHorizontal: 0,
+    },
+    guestSpacerTop: { minHeight: 220 },
+    guestMid: {
+      paddingHorizontal: 16,
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
+    guestActions: {
+      gap: 12,
+      paddingHorizontal: 28,
+      marginBottom: 22,
+      alignItems: 'center',
+    },
+    guestActionsDark: {
+      paddingHorizontal: 40,
+    },
+    authPill: {
+      height: 48,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.2,
+      alignSelf: 'center',
+      width: '100%',
+      maxWidth: 300,
+    },
+    authPillLight: {
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: '#000000',
+    },
+    authPillDark: {
+      backgroundColor: 'rgba(20,24,32,0.82)',
+      borderColor: '#FFFFFF',
+      maxWidth: 280,
+    },
+    authPillText: {
+      color: '#1A73E8',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    guestSettingsWrap: {
+      backgroundColor: '#F2F2F7',
       borderRadius: 24,
-      padding: 28,
-      borderWidth: 1,
-      borderColor: ui.border,
-      alignItems: 'center',
-      marginTop: 20,
+      paddingHorizontal: 12,
+      paddingTop: 14,
+      paddingBottom: 10,
     },
-    guestIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: ui.brandSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 16,
+    guestSettingsWrapDark: {
+      backgroundColor: '#16161A',
     },
-    guestTitle: { fontSize: 20, fontWeight: '800', color: ui.text },
-    guestSubtitle: {
-      fontSize: 14,
-      color: ui.muted,
-      textAlign: 'center',
-      lineHeight: 20,
-      marginTop: 8,
-      marginBottom: 24,
-    },
-    primaryBtn: {
-      width: '100%',
-      height: 50,
-      borderRadius: 14,
-      backgroundColor: ui.brand,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    secondaryBtn: {
-      width: '100%',
-      height: 50,
-      borderRadius: 14,
-      backgroundColor: ui.card,
-      borderWidth: 1,
-      borderColor: ui.brand,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 12,
-    },
-    secondaryBtnText: { color: ui.brand, fontSize: 15, fontWeight: '700' },
     sectionTitleGuest: {
       fontSize: 11,
       fontWeight: '600',
       color: ui.muted,
       letterSpacing: 1,
-      marginTop: 28,
       marginBottom: 8,
       paddingLeft: 4,
     },
@@ -414,6 +483,13 @@ function createStyles(ui: AppUI) {
       borderWidth: 1,
       borderColor: ui.border,
       overflow: 'hidden',
+    },
+    guestVersion: {
+      fontSize: 11,
+      color: ui.muted,
+      textAlign: 'center',
+      marginTop: 14,
+      marginBottom: 4,
     },
     profileHeaderCard: {
       backgroundColor: ui.card,
@@ -533,7 +609,7 @@ function createStyles(ui: AppUI) {
       color: ui.muted,
       textAlign: 'center',
       marginTop: 24,
-      paddingBottom: 110,
+      paddingBottom: 24,
     },
   });
 }

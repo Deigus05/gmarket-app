@@ -479,7 +479,10 @@ export default function CartScreen() {
   }
 
   return (
-    <View style={[styles.mainWrapper, { paddingTop: Math.max(insets.top, 16) }]}>
+    <View
+      style={[styles.mainWrapper, { paddingTop: Math.max(insets.top, 16) }]}
+      collapsable={false}
+    >
       <View style={styles.topHeader}>
         <Text style={styles.headerTitle}>{t('cart.title')}</Text>
         <Text style={styles.headerSubtitle}>
@@ -499,8 +502,10 @@ export default function CartScreen() {
           <Text style={styles.emptyHint}>{t('cart.emptyHint')}</Text>
         </View>
       ) : (
-        <View style={styles.content}>
+        <View style={styles.content} collapsable={false}>
           <ScrollView
+            style={styles.list}
+            contentInsetAdjustmentBehavior="never"
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
           >
@@ -619,7 +624,12 @@ export default function CartScreen() {
             ))}
           </ScrollView>
 
-          <View style={[styles.buyBarWrap, { paddingBottom: Math.max(insets.bottom, 12) + 78 }]}>
+          <View
+            style={[
+              styles.buyBarWrap,
+              { paddingBottom: Math.max(insets.bottom, 12) + 64 },
+            ]}
+          >
             <CartBuyBar
               disabled={totalItensSelecionados === 0 || authLoading}
               onPress={() => {
@@ -687,6 +697,7 @@ function createStyles(ui: AppUI, isDark: boolean) {
     mainWrapper: { flex: 1, backgroundColor: ui.bg },
     centered: { justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1 },
+    list: { flex: 1 },
     topHeader: {
       paddingHorizontal: 20,
       paddingBottom: 14,
@@ -732,6 +743,7 @@ function createStyles(ui: AppUI, isDark: boolean) {
     },
     listContent: {
       paddingHorizontal: 16,
+      paddingTop: 4,
       paddingBottom: 16,
       gap: 14,
     },
@@ -883,7 +895,8 @@ function createStyles(ui: AppUI, isDark: boolean) {
     buyBarWrap: {
       paddingHorizontal: 16,
       paddingTop: 10,
-      backgroundColor: 'transparent',
+      backgroundColor: ui.bg,
+      zIndex: 30,
     },
     buyBar: {
       flexDirection: 'row',

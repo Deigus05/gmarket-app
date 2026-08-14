@@ -53,6 +53,7 @@ import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { connectChatSocket, type ChatConnectionState } from '@/lib/chatSocket';
 import { compressImagesForUpload } from '@/lib/imageOptimization';
+import { ensureVisitorSupportSession } from '@/lib/visitorSupport';
 
 const PAGE_SIZE = 30;
 
@@ -123,6 +124,11 @@ export default function ChatScreen() {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder, 200);
 
+  const [visitorToken, setVisitorToken] = useState<string | null>(null);
+  const [visitorBooting, setVisitorBooting] = useState(false);
+  const accessToken = isLoggedIn && token ? token : visitorToken;
+  const isVisitor = Boolean(!isLoggedIn && visitorToken);
+
   const [conversation, setConversation] = useState<SupportConversation | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [body, setBody] = useState('');
@@ -140,12 +146,12 @@ export default function ChatScreen() {
   const [supportTyping, setSupportTyping] = useState(false);
 
   const conversationIdRef = useRef<string | null>(null);
-  const tokenRef = useRef(token);
+  const tokenRef = useRef(accessToken);
   const socketRef = useRef<Socket | null>(null);
   const typingSentRef = useRef(false);
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  tokenRef.current = token;
+  tokenRef.current = accessToken;
 
   const stopCustomerTyping = useCallback(() => {
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
@@ -187,24 +193,37 @@ export default function ChatScreen() {
   }, []);
 
   const loadLatest = useCallback(async (silent = false) => {
-    if (!token) {
+    if (!accessToken) {
       setLoading(false);
       return;
     }
     if (!silent) setLoading(true);
     setError('');
-    const conversationResult = await getSupportConversation(token);
-    if (!conversationResult.success) {
-      setError(conversationResult.message);
+
+    let nextConversation: SupportConversation | null = null;
+    if (isVisitor) {
+      const id = conversationIdRef.current;
+      if (id) nextConversation = { id };
+    } else {
+      const conversationResult = await getSupportConversation(accessToken);
+      if (!conversationResult.success) {
+        setError(conversationResult.message);
+        setLoading(false);
+        return;
+      }
+      nextConversation = conversationResult.data;
+    }
+
+    if (!nextConversation?.id) {
+      setError('Não foi possível abrir a conversa.');
       setLoading(false);
       return;
     }
 
-    const nextConversation = conversationResult.data;
     conversationIdRef.current = nextConversation.id;
-    setConversation(nextConversation);
+    setConversation((current) => ({ ...current, ...nextConversation }));
 
-    const messagesResult = await getSupportMessages(token, nextConversation.id, {
+    const messagesResult = await getSupportMessages(accessToken, nextConversation.id, {
       limit: PAGE_SIZE,
     });
     if (!messagesResult.success) {
@@ -217,23 +236,50 @@ export default function ChatScreen() {
     setBefore(messagesResult.data.next_before);
     setLoading(false);
     void markRead(nextConversation.id);
-  }, [markRead, token]);
+  }, [accessToken, isVisitor, markRead]);
+
+  useEffect(() => {
+    let active = true;
+    if (authLoading) return;
+    if (isLoggedIn && token) {
+      setVisitorToken(null);
+      return;
+    }
+    setVisitorBooting(true);
+    void ensureVisitorSupportSession().then((result) => {
+      if (!active) return;
+      setVisitorBooting(false);
+      if (!result.ok) {
+        setError(result.message);
+        setLoading(false);
+        return;
+      }
+      setVisitorToken(result.session.token);
+      setConversation(result.session.conversation);
+      conversationIdRef.current = result.session.conversation.id;
+    });
+    return () => {
+      active = false;
+    };
+  }, [authLoading, isLoggedIn, token]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!accessToken) return;
       void loadLatest();
       const id = conversationIdRef.current;
       if (id) void markRead(id);
-    }, [loadLatest, markRead]),
+    }, [accessToken, loadLatest, markRead]),
   );
 
   useEffect(() => {
-    if (!token || !isLoggedIn) {
+    if (!accessToken) {
       setConnection('disconnected');
       return;
     }
     const session = connectChatSocket({
-      token,
+      token: accessToken,
+      role: isVisitor ? 'visitor' : 'customer',
       conversationId: conversation?.id,
       onConnectionChange: (state) => {
         setConnection(state);
@@ -277,20 +323,20 @@ export default function ChatScreen() {
       socketRef.current = null;
       session.teardown();
     };
-  }, [conversation?.id, isLoggedIn, loadLatest, markRead, stopCustomerTyping, token]);
+  }, [accessToken, conversation?.id, isVisitor, loadLatest, markRead, stopCustomerTyping]);
 
   useEffect(() => {
-    if (!token || !isLoggedIn) return;
+    if (!accessToken) return;
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void loadLatest(true);
     });
     return () => subscription.remove();
-  }, [isLoggedIn, loadLatest, token]);
+  }, [accessToken, loadLatest]);
 
   const loadOlder = useCallback(async () => {
-    if (!token || !conversation || !hasMore || !before || loadingOlder) return;
+    if (!accessToken || !conversation || !hasMore || !before || loadingOlder) return;
     setLoadingOlder(true);
-    const result = await getSupportMessages(token, conversation.id, {
+    const result = await getSupportMessages(accessToken, conversation.id, {
       before,
       limit: PAGE_SIZE,
     });
@@ -300,7 +346,7 @@ export default function ChatScreen() {
       setBefore(result.data.next_before);
     }
     setLoadingOlder(false);
-  }, [before, conversation, hasMore, loadingOlder, token]);
+  }, [accessToken, before, conversation, hasMore, loadingOlder]);
 
   const pickPhotos = async () => {
     const remaining = 3 - photos.length;
@@ -381,7 +427,7 @@ export default function ChatScreen() {
   const submit = async () => {
     const text = body.trim();
     if (
-      !token
+      !accessToken
       || !conversation
       || sending
       || recorderState.isRecording
@@ -408,7 +454,7 @@ export default function ChatScreen() {
     setRecordedAudio(null);
     setSending(true);
     setError('');
-    const result = await sendSupportMessage(token, conversation.id, {
+    const result = await sendSupportMessage(accessToken, conversation.id, {
       body: text,
       client_message_id: clientId,
       image_uris: selectedPhotos,
@@ -501,7 +547,7 @@ export default function ChatScreen() {
     [conversation?.admin_read_at, dateLocale, styles, t, ui],
   );
 
-  if (authLoading) {
+  if (authLoading || visitorBooting) {
     return (
       <View style={[styles.screen, styles.center]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -510,7 +556,7 @@ export default function ChatScreen() {
     );
   }
 
-  if (!isLoggedIn || !token) {
+  if (!accessToken) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -526,13 +572,26 @@ export default function ChatScreen() {
           <View style={styles.guestIcon}>
             <Ionicons name="chatbubble-ellipses-outline" size={38} color={ui.brand} />
           </View>
-          <Text style={styles.guestTitle}>{t('chat.guestTitle')}</Text>
-          <Text style={styles.guestText}>{t('chat.guestSubtitle')}</Text>
+          <Text style={styles.guestTitle}>{t('chat.visitorFailTitle')}</Text>
+          <Text style={styles.guestText}>{error || t('chat.visitorFailSubtitle')}</Text>
           <Pressable
             style={styles.loginButton}
-            onPress={() => router.push({ pathname: '/login', params: { redirect: 'chat' } })}
+            onPress={() => {
+              setVisitorBooting(true);
+              void ensureVisitorSupportSession().then((result) => {
+                setVisitorBooting(false);
+                if (!result.ok) {
+                  setError(result.message);
+                  return;
+                }
+                setVisitorToken(result.session.token);
+                setConversation(result.session.conversation);
+                conversationIdRef.current = result.session.conversation.id;
+                setError('');
+              });
+            }}
           >
-            <Text style={styles.loginButtonText}>{t('common.login')}</Text>
+            <Text style={styles.loginButtonText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       </View>
@@ -566,7 +625,7 @@ export default function ChatScreen() {
       <View style={{ height: insets.top }} />
       <ChatHeader
         title={t('chat.title')}
-        subtitle={`${t('chat.official')} · ${t(`chat.connection.${connection}`)}`}
+        subtitle={`${isVisitor ? t('chat.visitorLabel') : t('chat.official')} · ${t(`chat.connection.${connection}`)}`}
         connection={connection}
         onBack={() => router.back()}
         ui={ui}

@@ -9,7 +9,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    DeviceEventEmitter,
     Dimensions,
     FlatList,
     NativeScrollEvent,
@@ -102,7 +101,6 @@ import {
 } from '../../components/api';
 import { useAuth } from '../../components/AuthContext';
 import CatalogoModal from '../../components/CatalogoModal';
-import { HOME_TAB_PRESS_EVENT } from '../../components/FloatingGlassTabBar';
 import LocalizacaoModal from '../../components/LocalizacaoModal';
 
 function supportUnreadFromConversation(data: SupportConversation) {
@@ -957,13 +955,6 @@ export default function HomeScreen() {
   }, [magicRunning]);
 
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener(HOME_TAB_PRESS_EVENT, () => {
-      homeScrollRef.current?.scrollToOffset({ offset: 0, animated: true });
-    });
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     const loadHomeAddress = async () => {
       try {
@@ -1672,20 +1663,11 @@ export default function HomeScreen() {
   const showShards = magicRunning && !!shardUri;
 
   return (
-    <View style={[styles.mainWrapper, magicRunning && styles.mainWrapperMagic]}>
-      {/* Tornado atrás da UI — conteúdo voa para dentro dele */}
-      <HomeMagicLayer
-        running={magicRunning}
-        buttonVisible={magicButtonVisible}
-        tornadoVisible={tornadoVisible}
-        onPressMagic={startMagicAndScroll}
-        label={t('home.magic')}
-      />
-
-      {shardUri && magicRunning ? (
-        <HomeDisintegrate uri={shardUri} progress={suckProgress} />
-      ) : null}
-
+    <View
+      style={[styles.mainWrapper, magicRunning && styles.mainWrapperMagic]}
+      collapsable={false}
+    >
+      {/* FlatList first in the native chain so NativeTabs can minimize on scroll. */}
       <ViewShot
         ref={homeShotRef}
         style={styles.homeSuckLayer}
@@ -1696,30 +1678,7 @@ export default function HomeScreen() {
           pointerEvents={magicRunning ? 'none' : 'auto'}
           collapsable={false}
         >
-          {/* Barra fixa: categoria + busca + notificação */}
-          <Animated.View
-            style={[styles.stickyWrap, stickyStyle, magicRunning && styles.stickyHidden]}
-            animatedProps={stickyAnimatedProps}
-          >
-            <LinearGradient
-              colors={[colors.deep, colors.mid]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.stickyInner, { paddingTop: insets.top + 8 }]}
-            >
-              <SearchRow
-                colors={colors}
-                styles={styles}
-                onCatalog={() => setCatalogVisible(true)}
-                onNotifications={() => router.push('/notificacoes')}
-                onSearch={openSearch}
-                onChat={() => router.push('/chat')}
-                notificationsUnread={unreadNotifications}
-                chatUnread={chatUnread}
-              />
-            </LinearGradient>
-          </Animated.View>
-
+          <View pointerEvents="none" style={styles.overscrollDeepFill} />
           <AnimatedFlatList
             ref={homeScrollRef}
             data={feedItems}
@@ -1758,6 +1717,30 @@ export default function HomeScreen() {
             removeClippedSubviews={false}
           />
 
+          {/* Barra fixa: categoria + busca + notificação */}
+          <Animated.View
+            style={[styles.stickyWrap, stickyStyle, magicRunning && styles.stickyHidden]}
+            animatedProps={stickyAnimatedProps}
+          >
+            <LinearGradient
+              colors={[colors.deep, colors.mid]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.stickyInner, { paddingTop: insets.top + 8 }]}
+            >
+              <SearchRow
+                colors={colors}
+                styles={styles}
+                onCatalog={() => setCatalogVisible(true)}
+                onNotifications={() => router.push('/notificacoes')}
+                onSearch={openSearch}
+                onChat={() => router.push('/chat')}
+                notificationsUnread={unreadNotifications}
+                chatUnread={chatUnread}
+              />
+            </LinearGradient>
+          </Animated.View>
+
           {refreshing ? (
             <View
               style={[styles.refreshLoader, { top: insets.top + 10 }]}
@@ -1768,6 +1751,19 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </ViewShot>
+
+      {/* Tornado atrás da UI — conteúdo voa para dentro dele */}
+      <HomeMagicLayer
+        running={magicRunning}
+        buttonVisible={magicButtonVisible}
+        tornadoVisible={tornadoVisible}
+        onPressMagic={startMagicAndScroll}
+        label={t('home.magic')}
+      />
+
+      {shardUri && magicRunning ? (
+        <HomeDisintegrate uri={shardUri} progress={suckProgress} />
+      ) : null}
 
       <CatalogoModal
         visivel={catalogVisible}
@@ -1808,7 +1804,8 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
   return StyleSheet.create({
     mainWrapper: {
       flex: 1,
-      backgroundColor: C.deep,
+      // surface atrás da tab bar → Liquid Glass não amostra o deep (fumaça)
+      backgroundColor: C.surface,
     },
     mainWrapperMagic: {
       backgroundColor: '#000000',
@@ -1818,19 +1815,32 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       zIndex: 2,
       elevation: 2,
       overflow: 'visible',
+      backgroundColor: C.surface,
     },
     homeHidden: {
       opacity: 0,
     },
+    /** Camada deep só no topo — aparece no overscroll/pull-down do iOS. */
+    overscrollDeepFill: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 480,
+      backgroundColor: C.deep,
+      zIndex: 0,
+    },
     list: {
       flex: 1,
-      backgroundColor: C.deep,
+      // transparente: no bounce de cima revela overscrollDeepFill (deep)
+      backgroundColor: 'transparent',
+      zIndex: 1,
     },
     listMagic: {
       backgroundColor: 'transparent',
     },
     listContent: {
-      paddingBottom: 110,
+      paddingBottom: 24,
       backgroundColor: C.surface,
       flexGrow: 1,
     },
@@ -1859,6 +1869,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       left: 0,
       right: 0,
       zIndex: 1000,
+      backgroundColor: C.deep,
       shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,

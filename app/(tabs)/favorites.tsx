@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import {
@@ -75,6 +76,7 @@ type FavSegment = 'produtos' | 'imoveis' | 'lojas';
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const { token, isLoggedIn } = useAuth();
@@ -85,6 +87,7 @@ export default function FavoritesScreen() {
   const [favProperties, setFavProperties] = useState<FavProperty[]>([]);
   const [favProducts, setFavProducts] = useState<FavProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [headerHeight, setHeaderHeight] = useState(120);
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -198,7 +201,10 @@ export default function FavoritesScreen() {
   };
 
   const renderSegmentHeader = () => (
-    <View style={styles.topNavbarHeader}>
+    <View
+      style={[styles.topNavbarHeader, { paddingTop: Math.max(insets.top, 12) }]}
+      onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+    >
       <Text style={styles.screenMainTitle}>{t('favorites.title')}</Text>
 
       <View style={styles.segmentContainer}>
@@ -244,9 +250,7 @@ export default function FavoritesScreen() {
   }
 
   return (
-    <View style={styles.mainWrapper}>
-      {renderSegmentHeader()}
-
+    <View style={styles.mainWrapper} collapsable={false}>
       {activeSegment === 'produtos' ? (
         <FlatList
           key="fav-produtos"
@@ -254,9 +258,11 @@ export default function FavoritesScreen() {
           keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
             padding: 16,
-            paddingBottom: 110,
+            paddingTop: headerHeight + 16,
+            paddingBottom: 24,
             gap: 12,
             flexGrow: favProducts.length === 0 ? 1 : undefined,
           }}
@@ -316,7 +322,8 @@ export default function FavoritesScreen() {
           key="fav-imoveis"
           data={favProperties}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 110 }}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -370,7 +377,8 @@ export default function FavoritesScreen() {
           key="fav-lojas"
           data={favStores}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 110 }}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -408,6 +416,8 @@ export default function FavoritesScreen() {
           )}
         />
       )}
+
+      {renderSegmentHeader()}
     </View>
   );
 }
@@ -416,8 +426,13 @@ function createStyles(ui: AppUI) {
   const productCardWidth = (width - 40 - 12) / 2;
 
   return StyleSheet.create({
-    mainWrapper: { flex: 1, backgroundColor: ui.bg, paddingTop: 60 },
+    mainWrapper: { flex: 1, backgroundColor: ui.bg },
     topNavbarHeader: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 20,
       paddingHorizontal: 16,
       backgroundColor: ui.card,
       borderBottomWidth: 1,

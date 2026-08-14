@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, type ComponentType } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
+import type { DOMProps } from 'expo/dom';
 
-import GlitterWrap from '@/components/glitter/GlitterWrap';
+/** If the DOM WebView never reports load, still allow the success card. */
+const LOAD_FALLBACK_MS = 4000;
 
-/** If the WebView never reports load, still allow the success card. */
-const LOAD_FALLBACK_MS = 2500;
+type GlitterDomProps = {
+  dom?: DOMProps;
+};
 
 type Props = {
   visible: boolean;
@@ -16,9 +19,9 @@ type Props = {
 };
 
 /**
- * Android checkout cover: Glitter Wrap starfield (canvas WebView).
- * Never imports TornadoVortex (`'use dom'` / WebGL) — that path can hang
- * Android startup when evaluated from the home tab.
+ * Android checkout cover: Originkit Glitter Wrap (Variant 1) via Expo DOM.
+ * Dynamically imported only for `cover` so the home `portal` path never
+ * evaluates the DOM module (same hang risk as TornadoVortex / WebGL).
  */
 export default function TornadoOverlay({
   visible,
@@ -26,27 +29,51 @@ export default function TornadoOverlay({
   variant = 'cover',
   children,
 }: Props) {
+  const isCover = variant !== 'portal';
   const [ready, setReady] = useState(false);
+  const [Glitter, setGlitter] = useState<ComponentType<GlitterDomProps> | null>(
+    null,
+  );
   const { width, height } = Dimensions.get('window');
-  const mounted = prewarm || visible;
-  const showShell = visible && variant !== 'portal';
+  const mounted = isCover && (prewarm || visible);
+  const showShell = isCover && visible;
   const revealContent = showShell && ready;
 
   useEffect(() => {
-    if (!mounted || variant === 'portal') {
+    if (!mounted) {
+      setGlitter(null);
+      setReady(false);
+      return;
+    }
+    let cancelled = false;
+    import('@/components/glitter/GlitterWrap.dom')
+      .then((mod) => {
+        if (!cancelled) setGlitter(() => mod.default);
+      })
+      .catch((err) => {
+        console.warn('[TornadoOverlay.android] GlitterWrap load failed:', err);
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted) {
       setReady(false);
       return;
     }
     if (ready) return;
     const fallback = setTimeout(() => setReady(true), LOAD_FALLBACK_MS);
     return () => clearTimeout(fallback);
-  }, [mounted, ready, variant]);
+  }, [mounted, ready]);
 
   useEffect(() => {
-    if (visible) setReady(false);
-  }, [visible]);
+    if (visible && isCover) setReady(false);
+  }, [visible, isCover]);
 
-  if (!mounted || variant === 'portal') return null;
+  if (!mounted) return null;
 
   return (
     <View
@@ -58,10 +85,31 @@ export default function TornadoOverlay({
       pointerEvents={showShell ? 'auto' : 'none'}
       collapsable={false}
     >
-      <GlitterWrap
-        key={visible ? 'glitter-full' : 'glitter-warm'}
-        onReady={() => setReady(true)}
-      />
+      {Glitter ? (
+        <Glitter
+          key={visible ? 'glitter-full' : 'glitter-warm'}
+          dom={{
+            style: showShell
+              ? {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width,
+                  height,
+                  backgroundColor: '#000',
+                }
+              : {
+                  width: 2,
+                  height: 2,
+                  backgroundColor: '#000',
+                },
+            scrollEnabled: false,
+            setSupportMultipleWindows: false,
+            androidLayerType: 'hardware',
+            onLoadEnd: () => setReady(true),
+          }}
+        />
+      ) : null}
       {revealContent && children ? (
         <View style={styles.foreground} pointerEvents="box-none">
           {children}

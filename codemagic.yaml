@@ -2,6 +2,14 @@
 # Sem expo-dev-client: o binário embute o JS e NÃO precisa de Metro.
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/
 #
+# WORKFLOWS
+# - android-apk  → build/GMarket.apk
+# - ios-sideloadly → build/GMarket-sideloadly.ipa (unsigned; re-assinar no Sideloadly)
+#
+# SECRETS / GROUPS (Codemagic UI → Environment variables)
+# - android_fcm: GOOGLE_SERVICES_JSON (obrigatório para push Android)
+# - Opcional: GOOGLE_MAPS_API_KEY (sem isto o MapView fica em branco no nativo)
+#
 # PUSH / NOTIFICAÇÕES
 # - Android APK: exige GOOGLE_SERVICES_JSON (secret) com Firebase package com.gmarket.app.
 #   Backend → Expo Push API → FCM v1. Sem este ficheiro o push em background/fechado falha.
@@ -26,6 +34,8 @@ workflows:
         EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
         NODE_ENV: production
         REQUIRE_ANDROID_FCM: "1"
+        # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
+        # para mapas nativos no APK.
     scripts:
       - name: Install npm dependencies
         script: |
@@ -117,6 +127,8 @@ workflows:
         XCODE_SCHEME: GMarket
         EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
         NODE_ENV: production
+        # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
+        # para mapas nativos no IPA.
     scripts:
       - name: Install npm dependencies
         script: |

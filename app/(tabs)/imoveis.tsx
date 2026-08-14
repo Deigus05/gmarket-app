@@ -57,6 +57,7 @@ export default function ImoveisScreen() {
   const [favorites, setFavorites] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 108);
 
   const purpose = paramStr(params.purpose, '');
   const rentalPeriod = paramStr(params.rental_period, '');
@@ -165,32 +166,7 @@ export default function ImoveisScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <View style={[styles.fixedTop, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>
-              GMarket <Text style={styles.ultraText}>ULTIMA</Text>
-            </Text>
-            <Text style={styles.headerSubtitle}>{t('properties.title')}</Text>
-          </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/anunciar-imovel')}>
-            <Ionicons name="add" size={18} color="#FFF" />
-            <Text style={styles.addButtonText}>{t('properties.announce')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.filterRow} onPress={openFilters} activeOpacity={0.75}>
-          <Ionicons name="options-outline" size={18} color={ui.brand} />
-          <Text style={styles.filterLabel}>{t('properties.filter')}</Text>
-          {activeFilterCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
+    <View style={styles.screen} collapsable={false}>
       {loading && properties.length === 0 && !refreshing ? (
         <View style={styles.loadingBox}>
           <RippleWaveLoader color={ui.brand} />
@@ -201,7 +177,8 @@ export default function ImoveisScreen() {
           data={properties}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 14 }]}
           refreshControl={
             <RefreshControl
               // refreshing=false: não mantém o spinner nativo.
@@ -267,9 +244,37 @@ export default function ImoveisScreen() {
         />
       )}
 
+      <View
+        style={[styles.fixedTop, { paddingTop: insets.top + 8 }]}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>
+              GMarket <Text style={styles.ultraText}>ULTIMA</Text>
+            </Text>
+            <Text style={styles.headerSubtitle}>{t('properties.title')}</Text>
+          </View>
+          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/anunciar-imovel')}>
+            <Ionicons name="add" size={18} color="#FFF" />
+            <Text style={styles.addButtonText}>{t('properties.announce')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.filterRow} onPress={openFilters} activeOpacity={0.75}>
+          <Ionicons name="options-outline" size={18} color={ui.brand} />
+          <Text style={styles.filterLabel}>{t('properties.filter')}</Text>
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
       {refreshing ? (
         <View
-          style={[styles.refreshLoader, { top: insets.top + 108, backgroundColor: ui.bg }]}
+          style={[styles.refreshLoader, { top: headerHeight + 8, backgroundColor: ui.bg }]}
           pointerEvents="none"
         >
           <RippleWaveLoader size="small" color={ui.brand} />
@@ -283,6 +288,10 @@ function createStyles(ui: AppUI) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: ui.bg },
     fixedTop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
       backgroundColor: ui.card,
       paddingHorizontal: 16,
       paddingBottom: 8,
@@ -339,7 +348,7 @@ function createStyles(ui: AppUI) {
       zIndex: 100,
       elevation: 100,
     },
-    listContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 110 },
+    listContent: { paddingHorizontal: 16, paddingBottom: 24 },
     emptyText: {
       textAlign: 'center',
       color: ui.muted,

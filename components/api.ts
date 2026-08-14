@@ -2066,6 +2066,39 @@ export async function markSupportConversationRead(
   }
 }
 
+/**
+ * Sessão de suporte sem conta.
+ * Backend deve gravar display_name "Visitante" no painel admin.
+ */
+export async function getVisitorSupportConversation(
+  deviceId: string,
+): Promise<
+  ApiResult<{
+    token: string;
+    conversation: SupportConversation;
+    display_name: string;
+  }>
+> {
+  try {
+    const response = await apiFetch(`${API_URL}/api/support/visitor/conversation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: deviceId,
+        display_name: 'Visitante',
+      }),
+    });
+    return parseAuthResponse<{
+      token: string;
+      conversation: SupportConversation;
+      display_name: string;
+    }>(response);
+  } catch (error) {
+    console.log('Erro ao abrir suporte visitante:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
 // ─── RECOMENDAÇÕES / ATIVIDADES ──────────────────────────────────────────────
 
 export type UserActivityAction =

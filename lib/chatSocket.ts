@@ -10,6 +10,7 @@ export type ChatConnectionState = 'connecting' | 'connected' | 'disconnected';
 
 type ChatSocketOptions = {
   token: string;
+  role?: 'customer' | 'visitor';
   conversationId?: string;
   onMessage?: (message: SupportMessage) => void;
   onConversation?: (conversation: SupportConversation) => void;
@@ -36,6 +37,7 @@ function eventData<T>(payload: T | { data?: T }): T | null {
 /** Abre uma sessão Socket.IO autenticada e devolve um teardown idempotente. */
 export function connectChatSocket({
   token,
+  role = 'customer',
   conversationId,
   onMessage,
   onConversation,
@@ -46,7 +48,7 @@ export function connectChatSocket({
   onConnectionChange?.('connecting');
 
   const socket = io(API_URL, {
-    auth: { token, role: 'customer' },
+    auth: { token, role },
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: Infinity,
