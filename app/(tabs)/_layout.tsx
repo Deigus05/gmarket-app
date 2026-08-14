@@ -45,7 +45,10 @@ export default function TabsLayout() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="imoveis">
+      <NativeTabs.Trigger
+        name="imoveis"
+        options={{ overrideScrollViewContentInsetAdjustmentBehavior: false }}
+      >
         <Label>{t('tabs.properties')}</Label>
         <Icon
           sf={{ default: 'building.2', selected: 'building.2.fill' }}
@@ -56,7 +59,10 @@ export default function TabsLayout() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="favorites">
+      <NativeTabs.Trigger
+        name="favorites"
+        options={{ overrideScrollViewContentInsetAdjustmentBehavior: false }}
+      >
         <Label>{t('tabs.favorites')}</Label>
         <Icon
           sf={{ default: 'heart', selected: 'heart.fill' }}
@@ -78,7 +84,10 @@ export default function TabsLayout() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
+      <NativeTabs.Trigger
+        name="profile"
+        options={{ overrideScrollViewContentInsetAdjustmentBehavior: false }}
+      >
         <Label>{t('tabs.profile')}</Label>
         {profilePhotoUrl ? (
           <Icon src={{ uri: profilePhotoUrl }} />
