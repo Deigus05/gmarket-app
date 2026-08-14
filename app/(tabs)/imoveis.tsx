@@ -177,7 +177,7 @@ export default function ImoveisScreen() {
           data={properties}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 14 }]}
           refreshControl={
             <RefreshControl

@@ -192,7 +192,7 @@ export default function ProfileScreen() {
       <View style={styles.guestScreen} collapsable={false}>
         <ScrollView
           style={styles.guestOverlay}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
             styles.guestOverlayContent,
             {
@@ -266,8 +266,8 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
-      style={styles.mainWrapper}
-      contentInsetAdjustmentBehavior="automatic"
+      style={[styles.mainWrapper, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+      contentInsetAdjustmentBehavior="never"
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.profileHeaderCard}>
@@ -399,7 +399,7 @@ export default function ProfileScreen() {
 
 function createStyles(ui: AppUI) {
   return StyleSheet.create({
-    mainWrapper: { flex: 1, backgroundColor: ui.bg, paddingTop: 60 },
+    mainWrapper: { flex: 1, backgroundColor: ui.bg },
     centered: { justifyContent: 'center', alignItems: 'center' },
     guestScreen: {
       flex: 1,

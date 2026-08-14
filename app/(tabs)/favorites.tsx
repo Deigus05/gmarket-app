@@ -258,7 +258,7 @@ export default function FavoritesScreen() {
           keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{
             padding: 16,
             paddingTop: headerHeight + 16,
@@ -322,7 +322,7 @@ export default function FavoritesScreen() {
           key="fav-imoveis"
           data={favProperties}
           keyExtractor={(item) => item.id}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -377,7 +377,7 @@ export default function FavoritesScreen() {
           key="fav-lojas"
           data={favStores}
           keyExtractor={(item) => item.id}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
