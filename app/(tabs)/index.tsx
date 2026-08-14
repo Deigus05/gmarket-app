@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
+import { useScrollToTop } from '@react-navigation/native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -934,6 +935,9 @@ export default function HomeScreen() {
   const [shardUri, setShardUri] = useState<string | null>(null);
   const scrollY = useSharedValue(0);
 
+  // Toque em Início (já na Home) → sobe ao topo via a FlatList existente.
+  useScrollToTop(homeScrollRef);
+
   // Troca de conta: limpa UI sensível imediatamente (evita flash da conta anterior).
   useEffect(() => {
     let active = true;
@@ -1678,7 +1682,7 @@ export default function HomeScreen() {
           pointerEvents={magicRunning ? 'none' : 'auto'}
           collapsable={false}
         >
-          <View pointerEvents="none" style={styles.overscrollDeepFill} />
+          {/* FlatList 1.º na cadeia nativa: NativeTabs encontra o scroll no re-tap Início. */}
           <AnimatedFlatList
             ref={homeScrollRef}
             data={feedItems}
@@ -1687,7 +1691,12 @@ export default function HomeScreen() {
             numColumns={2}
             extraData={{ favorites, cartQtyById, chatUnread, unreadNotifications }}
             style={[styles.list, magicRunning && styles.listMagic]}
-            contentContainerStyle={[styles.listContent, magicRunning && styles.listContentMagic]}
+            contentContainerStyle={[
+              styles.listContent,
+              magicRunning && styles.listContentMagic,
+              // Espaço só o necessário para o último produto ficar acima da tab bar.
+              { paddingBottom: Math.max(insets.bottom, 12) + 56 },
+            ]}
             columnWrapperStyle={feedItems.length > 0 ? styles.columnWrapper : undefined}
             showsVerticalScrollIndicator={false}
             bounces={!magicRunning}
@@ -1716,6 +1725,7 @@ export default function HomeScreen() {
             windowSize={7}
             removeClippedSubviews={false}
           />
+          <View pointerEvents="none" style={styles.overscrollDeepFill} />
 
           {/* Barra fixa: categoria + busca + notificação */}
           <Animated.View
