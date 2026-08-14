@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import {
     GlassView,
@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/components/AuthContext';
 import { useAppTheme } from '@/components/tema';
+import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
 
 const ICONS: Record<
   string,
@@ -46,9 +47,6 @@ const ICONS: Record<
 const SPRING = { damping: 18, stiffness: 220, mass: 0.85 };
 const PILL_INSET = 4;
 const PILL_V_INSET = 8;
-
-/** Emitted when the Home tab icon is pressed while already on Home (scroll-to-top). */
-export const HOME_TAB_PRESS_EVENT = 'gmarket:homeTabPress';
 
 const canUseLiquidGlass =
   Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable();

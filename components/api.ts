@@ -24,20 +24,40 @@ import {
 
 export type { CacheReadOptions };
 
+function isUsableLanHost(host: string) {
+  const name = host.trim().toLowerCase();
+  if (!name || name === 'localhost' || name === '127.0.0.1') return false;
+  // Túnel do Expo/ngrok não encaminha a porta 3001 do backend.
+  if (
+    name.endsWith('.exp.direct')
+    || name.endsWith('.exp.host')
+    || name.endsWith('.expo.dev')
+    || name.includes('ngrok')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+const PRODUCTION_API_URL = 'https://gmarket-backend-production.up.railway.app';
+
 function resolveApiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, '');
 
+  // Preview/production APK/IPA: nunca usar localhost / 10.0.2.2 / IP da LAN.
+  if (!__DEV__) return PRODUCTION_API_URL;
+
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const host = hostUri.split(':')[0];
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    if (host && isUsableLanHost(host)) {
       return `http://${host}:3001`;
     }
   }
 
   if (Platform.OS === 'android') return 'http://10.0.2.2:3001';
-  return 'http://localhost:3001';
+  return 'http://127.0.0.1:3001';
 }
 
 // IP/porta do backend Express (mesma rede Wi‑Fi ou override via EXPO_PUBLIC_API_URL)
@@ -692,6 +712,8 @@ export type PromoInterstitial = {
   subtitle: string;
   image_url: string;
   background_color: string;
+  /** true: imagem ocupa todo o fundo; false: cor de fundo + imagem em destaque */
+  image_fill?: boolean;
   product_id?: string | null;
   promo_code?: string | null;
   cta_product_label?: string;

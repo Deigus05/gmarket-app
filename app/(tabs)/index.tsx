@@ -10,6 +10,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    DeviceEventEmitter,
     Dimensions,
     FlatList,
     NativeScrollEvent,
@@ -45,6 +46,7 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as typeof Fl
 /** Snap rápido entre fotos do card. */
 const CARD_GALLERY_DECEL = Platform.OS === 'ios' ? 0.99 : 0.9;
 
+import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
 import { invalidateApiCache } from '@/components/apiCache';
 import { HomeTicketStrip } from '@/components/eventos/HomeTicketStrip';
 import HomeDisintegrate from '@/components/home/HomeDisintegrate';
@@ -938,6 +940,14 @@ export default function HomeScreen() {
   // Toque em Início (já na Home) → sobe ao topo via a FlatList existente.
   useScrollToTop(homeScrollRef);
 
+  useEffect(() => {
+    if (Platform.OS === 'ios') return;
+    const sub = DeviceEventEmitter.addListener(HOME_TAB_PRESS_EVENT, () => {
+      homeScrollRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return () => sub.remove();
+  }, []);
+
   // Troca de conta: limpa UI sensível imediatamente (evita flash da conta anterior).
   useEffect(() => {
     let active = true;
@@ -1725,7 +1735,9 @@ export default function HomeScreen() {
             windowSize={7}
             removeClippedSubviews={false}
           />
-          <View pointerEvents="none" style={styles.overscrollDeepFill} />
+          {Platform.OS === 'ios' ? (
+            <View pointerEvents="none" style={styles.overscrollDeepFill} />
+          ) : null}
 
           {/* Barra fixa: categoria + busca + notificação */}
           <Animated.View

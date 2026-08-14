@@ -2,10 +2,10 @@ import 'react-native-gesture-handler';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -22,10 +22,19 @@ import { ThemeProvider, useAppTheme } from '@/components/tema';
 import { hideNativeSplashSafe, keepNativeSplash } from '@/lib/splash';
 import { prefetchPlatformContacts } from '@/lib/support';
 
-export {
-    // Catch any errors thrown by the Layout component.
-    ErrorBoundary
-} from 'expo-router';
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <View style={errorStyles.wrap}>
+      <Text style={errorStyles.title}>Erro a abrir o GMarket</Text>
+      <Text style={errorStyles.body} selectable>
+        {error?.message || String(error)}
+      </Text>
+      <Pressable onPress={retry} style={errorStyles.btn}>
+        <Text style={errorStyles.btnText}>Tentar outra vez</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
@@ -192,6 +201,38 @@ function ThemedNavigation() {
     </NavThemeProvider>
   );
 }
+
+const errorStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    backgroundColor: '#0B1220',
+    padding: 24,
+    justifyContent: 'center',
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  body: {
+    color: '#D6E4FF',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  btn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#2E7D32',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  btnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+});
 
 const styles = StyleSheet.create({
   root: {

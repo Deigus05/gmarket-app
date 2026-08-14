@@ -67,6 +67,7 @@ export default function PromoInterstitialModal({
   const [copied, setCopied] = useState(false);
 
   const isSheet = item?.placement === 'sheet';
+  const imageFill = item?.image_fill !== false;
   const sheetHeight = Math.round(height * 0.52);
   const bg = item?.background_color || '#E53935';
   const gradient = useMemo(
@@ -140,6 +141,26 @@ export default function PromoInterstitialModal({
   const hasProduct = Boolean(item.product_id);
   const hasPromo = Boolean(item.promo_code);
 
+  const copyBlock = (
+    <>
+      {item.title ? (
+        <Text style={isSheet ? styles.sheetTitle : styles.fullTitle} numberOfLines={isSheet ? 2 : undefined}>
+          {item.title}
+        </Text>
+      ) : null}
+      {item.subtitle ? (
+        <Text style={isSheet ? styles.sheetSubtitle : styles.fullSubtitle} numberOfLines={isSheet ? 3 : undefined}>
+          {item.subtitle}
+        </Text>
+      ) : null}
+      {item.promo_code ? (
+        <View style={[styles.codeChip, !isSheet && styles.codeChipLight]}>
+          <Text style={styles.codeChipText}>{item.promo_code}</Text>
+        </View>
+      ) : null}
+    </>
+  );
+
   const actions = (
     <View style={styles.actions}>
       {hasProduct ? (
@@ -191,10 +212,25 @@ export default function PromoInterstitialModal({
               {
                 height: sheetHeight,
                 paddingBottom: Math.max(insets.bottom, 14),
-                backgroundColor: bg,
+                backgroundColor: imageFill ? '#111' : bg,
               },
             ]}
           >
+            {imageFill ? (
+              <Image
+                source={{ uri: item.image_url }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : null}
+            {imageFill ? (
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.55)']}
+                style={styles.sheetFillScrim}
+                pointerEvents="none"
+              />
+            ) : null}
             <View style={styles.sheetHandle} />
             <Pressable
               accessibilityLabel="Fechar"
@@ -205,25 +241,21 @@ export default function PromoInterstitialModal({
               <FontAwesome name="times" size={16} color="#FFF" />
             </Pressable>
 
-            <View style={styles.sheetBody}>
-              <Image
-                source={{ uri: item.image_url }}
-                style={styles.sheetImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={styles.sheetCopy}>
-                <Text style={styles.sheetTitle} numberOfLines={2}>{item.title}</Text>
-                {item.subtitle ? (
-                  <Text style={styles.sheetSubtitle} numberOfLines={3}>{item.subtitle}</Text>
-                ) : null}
-                {item.promo_code ? (
-                  <View style={styles.codeChip}>
-                    <Text style={styles.codeChipText}>{item.promo_code}</Text>
-                  </View>
-                ) : null}
+            {imageFill ? (
+              <View style={styles.sheetFillBody}>
+                {copyBlock}
               </View>
-            </View>
+            ) : (
+              <View style={styles.sheetBody}>
+                <Image
+                  source={{ uri: item.image_url }}
+                  style={styles.sheetImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <View style={styles.sheetCopy}>{copyBlock}</View>
+              </View>
+            )}
             {actions}
           </Animated.View>
         </View>
@@ -234,7 +266,23 @@ export default function PromoInterstitialModal({
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose}>
       <Animated.View style={[styles.fullRoot, fullStyle]}>
-        <LinearGradient colors={[gradient[0], gradient[1]]} style={StyleSheet.absoluteFill} />
+        {imageFill ? (
+          <Image
+            source={{ uri: item.image_url }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={220}
+          />
+        ) : (
+          <LinearGradient colors={[gradient[0], gradient[1]]} style={StyleSheet.absoluteFill} />
+        )}
+        {imageFill ? (
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.62)']}
+            style={styles.fullFillScrim}
+            pointerEvents="none"
+          />
+        ) : null}
         <Pressable
           accessibilityLabel="Fechar"
           onPress={handleClose}
@@ -244,29 +292,33 @@ export default function PromoInterstitialModal({
           <FontAwesome name="times" size={18} color="#FFF" />
         </Pressable>
 
-        <View style={[styles.fullContent, { paddingTop: Math.max(insets.top, 12) + 48 }]}>
-          <View style={styles.fullImageWrap}>
-            <Image
-              source={{ uri: item.image_url }}
-              style={styles.fullImage}
-              contentFit="cover"
-              transition={220}
-            />
-          </View>
-
-          <View style={[styles.fullTextBlock, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-            <Text style={styles.fullTitle}>{item.title}</Text>
-            {item.subtitle ? (
-              <Text style={styles.fullSubtitle}>{item.subtitle}</Text>
-            ) : null}
-            {item.promo_code ? (
-              <View style={[styles.codeChip, styles.codeChipLight]}>
-                <Text style={styles.codeChipText}>{item.promo_code}</Text>
-              </View>
-            ) : null}
+        {imageFill ? (
+          <View
+            style={[
+              styles.fullFillContent,
+              { paddingTop: Math.max(insets.top, 12) + 48, paddingBottom: Math.max(insets.bottom, 16) + 8 },
+            ]}
+          >
+            {copyBlock}
             {actions}
           </View>
-        </View>
+        ) : (
+          <View style={[styles.fullContent, { paddingTop: Math.max(insets.top, 12) + 48 }]}>
+            <View style={styles.fullImageWrap}>
+              <Image
+                source={{ uri: item.image_url }}
+                style={styles.fullImage}
+                contentFit="cover"
+                transition={220}
+              />
+            </View>
+
+            <View style={[styles.fullTextBlock, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+              {copyBlock}
+              {actions}
+            </View>
+          </View>
+        )}
       </Animated.View>
     </Modal>
   );
@@ -290,6 +342,19 @@ const styles = StyleSheet.create({
   fullImage: {
     width: '100%',
     height: '100%',
+  },
+  fullFillScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '46%',
+  },
+  fullFillContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 22,
+    gap: 10,
   },
   fullTextBlock: {
     paddingHorizontal: 22,
@@ -330,9 +395,15 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingHorizontal: 18,
     paddingTop: 8,
     overflow: 'hidden',
+  },
+  sheetFillScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '58%',
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -341,6 +412,15 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.45)',
     marginBottom: 10,
+    zIndex: 2,
+  },
+  sheetFillBody: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    gap: 6,
+    paddingHorizontal: 18,
+    marginBottom: 10,
+    zIndex: 2,
   },
   sheetClose: {
     top: 12,
@@ -352,6 +432,7 @@ const styles = StyleSheet.create({
     gap: 14,
     alignItems: 'center',
     marginBottom: 12,
+    paddingHorizontal: 18,
   },
   sheetImage: {
     width: 112,
@@ -395,32 +476,41 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   actions: {
-    gap: 10,
+    gap: 8,
+    alignItems: 'center',
+    zIndex: 2,
+    paddingHorizontal: 18,
   },
   primaryBtn: {
     backgroundColor: '#0D47A1',
-    borderRadius: 14,
-    minHeight: 52,
+    borderRadius: 999,
+    minHeight: 38,
+    minWidth: 168,
+    maxWidth: '78%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 8,
   },
   primaryBtnText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '800',
   },
   secondaryBtn: {
     backgroundColor: '#FFF',
-    borderRadius: 14,
-    minHeight: 50,
+    borderRadius: 999,
+    minHeight: 36,
+    minWidth: 168,
+    maxWidth: '78%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 8,
   },
   secondaryBtnText: {
     color: '#0D47A1',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
   },
   pressed: {
