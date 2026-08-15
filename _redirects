@@ -1,0 +1,5 @@
+# Cloudflare Pages — SPA fallback (quando o domínio custom estiver activo)
+# https://developers.cloudflare.com/pages/configuration/redirects/
+/*
+  /index.html
+  200
