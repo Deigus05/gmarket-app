@@ -52,6 +52,7 @@ export default function ImoveisScreen() {
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const styles = useMemo(() => createStyles(ui), [ui]);
+  const listBottomPad = Math.max(insets.bottom, 10) + 64 + 16;
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [favorites, setFavorites] = useState<Property[]>([]);
@@ -178,7 +179,10 @@ export default function ImoveisScreen() {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 14 }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: headerHeight + 14, paddingBottom: listBottomPad },
+          ]}
           refreshControl={
             <RefreshControl
               // refreshing=false: não mantém o spinner nativo.
@@ -348,7 +352,7 @@ function createStyles(ui: AppUI) {
       zIndex: 100,
       elevation: 100,
     },
-    listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+    listContent: { paddingHorizontal: 16 },
     emptyText: {
       textAlign: 'center',
       color: ui.muted,

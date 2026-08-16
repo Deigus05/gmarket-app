@@ -81,6 +81,7 @@ export default function FavoritesScreen() {
   const { t } = useLocale();
   const { token, isLoggedIn } = useAuth();
   const styles = useMemo(() => createStyles(ui), [ui]);
+  const listBottomPad = Math.max(insets.bottom, 10) + 64 + 16;
   const isFocused = useIsFocused();
   const [activeSegment, setActiveTab] = useState<FavSegment>('produtos');
   const [favStores, setFavStores] = useState<FavStore[]>([]);
@@ -262,7 +263,7 @@ export default function FavoritesScreen() {
           contentContainerStyle={{
             padding: 16,
             paddingTop: headerHeight + 16,
-            paddingBottom: 24,
+            paddingBottom: listBottomPad,
             gap: 12,
             flexGrow: favProducts.length === 0 ? 1 : undefined,
           }}
@@ -323,7 +324,7 @@ export default function FavoritesScreen() {
           data={favProperties}
           keyExtractor={(item) => item.id}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: listBottomPad }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -378,7 +379,7 @@ export default function FavoritesScreen() {
           data={favStores}
           keyExtractor={(item) => item.id}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: listBottomPad }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
