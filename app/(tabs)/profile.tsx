@@ -267,7 +267,7 @@ export default function ProfileScreen() {
             styles.guestOverlayContent,
             {
               paddingTop: Math.max(insets.top, 8) + 8,
-              paddingBottom: Math.max(insets.bottom, 8) + 24,
+              paddingBottom: Math.max(insets.bottom, 10) + 64 + 28,
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -334,9 +334,13 @@ export default function ProfileScreen() {
   const fullName = `${user.nome} ${user.apelido}`.trim();
   const genderLabel = user.genero === 'masculino' ? t('profile.male') : t('profile.female');
 
+  // Tab bar flutuante (~64) + safe area: sem isto o "Sair da Conta" fica tapado.
+  const scrollBottomPad = Math.max(insets.bottom, 10) + 64 + 28;
+
   return (
     <ScrollView
       style={[styles.mainWrapper, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+      contentContainerStyle={{ paddingBottom: scrollBottomPad }}
       contentInsetAdjustmentBehavior="never"
       showsVerticalScrollIndicator={false}
     >
@@ -705,7 +709,7 @@ function createStyles(ui: AppUI) {
       color: ui.muted,
       textAlign: 'center',
       marginTop: 24,
-      paddingBottom: 24,
+      marginBottom: 8,
     },
   });
 }
