@@ -31,7 +31,7 @@ workflows:
       node: 22.14.0
       java: 17
       vars:
-        EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
+        EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
         NODE_ENV: production
         REQUIRE_ANDROID_FCM: "1"
         # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
@@ -125,7 +125,7 @@ workflows:
       vars:
         XCODE_WORKSPACE: GMarket.xcworkspace
         XCODE_SCHEME: GMarket
-        EXPO_PUBLIC_API_URL: https://gmarket-backend-production.up.railway.app
+        EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
         NODE_ENV: production
         # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
         # para mapas nativos no IPA.

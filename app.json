@@ -29,6 +29,7 @@
         "aps-environment": "production"
       },
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSFaceIDUsageDescription": "O GMarket usa Face ID para proteger o acesso ao GPay.",
         "NSMicrophoneUsageDescription": "O GMarket usa o microfone exclusivamente para gravar e enviar mensagens de áudio no suporte.",
         "LSApplicationQueriesSchemes": [
