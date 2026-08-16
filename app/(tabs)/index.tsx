@@ -2460,7 +2460,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       position: 'absolute',
       top: isDesktop ? 6 : 8,
       right: isDesktop ? 6 : 8,
-      backgroundColor: isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.92)',
+      backgroundColor: 'rgba(255,255,255,0.92)',
       borderRadius: 16,
       padding: isDesktop ? 5 : 7,
       zIndex: 2,

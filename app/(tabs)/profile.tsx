@@ -267,7 +267,7 @@ export default function ProfileScreen() {
             styles.guestOverlayContent,
             {
               paddingTop: Math.max(insets.top, 8) + 8,
-              paddingBottom: Math.max(insets.bottom, 10) + 64 + 28,
+              paddingBottom: Math.max(insets.bottom, 8) + 24,
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -334,153 +334,156 @@ export default function ProfileScreen() {
   const fullName = `${user.nome} ${user.apelido}`.trim();
   const genderLabel = user.genero === 'masculino' ? t('profile.male') : t('profile.female');
 
-  // Tab bar flutuante (~64) + safe area: sem isto o "Sair da Conta" fica tapado.
-  const scrollBottomPad = Math.max(insets.bottom, 10) + 64 + 28;
+  const tabBarClearance = Math.max(insets.bottom, 10) + 64;
 
   return (
-    <ScrollView
-      style={[styles.mainWrapper, { paddingTop: Math.max(insets.top, 12) + 12 }]}
-      contentContainerStyle={{ paddingBottom: scrollBottomPad }}
-      contentInsetAdjustmentBehavior="never"
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.profileHeaderCard}>
-        <View style={styles.avatarWrapper}>
-          <TouchableOpacity
-            onPress={handlePhotoPress}
-            activeOpacity={0.85}
-            disabled={updatingPhoto}
-          >
-            {user.foto_url ? (
-              <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarInitials}>{getInitials(user.nome, user.apelido)}</Text>
-              </View>
-            )}
-            <View style={styles.cameraBadge}>
-              {updatingPhoto ? (
-                <RippleWaveLoader size="small" color="#FFF" />
+    <View style={styles.mainWrapper}>
+      <ScrollView
+        style={{ flex: 1, paddingTop: Math.max(insets.top, 12) + 12 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.profileHeaderCard}>
+          <View style={styles.avatarWrapper}>
+            <TouchableOpacity
+              onPress={handlePhotoPress}
+              activeOpacity={0.85}
+              disabled={updatingPhoto}
+            >
+              {user.foto_url ? (
+                <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
               ) : (
-                <Ionicons name="camera" size={14} color="#FFF" />
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitials}>{getInitials(user.nome, user.apelido)}</Text>
+                </View>
               )}
+              <View style={styles.cameraBadge}>
+                {updatingPhoto ? (
+                  <RippleWaveLoader size="small" color="#FFF" />
+                ) : (
+                  <Ionicons name="camera" size={14} color="#FFF" />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.userName}>{fullName}</Text>
+          <Text style={styles.userEmail}>{user.telefone}</Text>
+          <Text style={styles.userMeta}>{genderLabel}</Text>
+
+          {user.endereco ? (
+            <View style={styles.addressBox}>
+              <Ionicons name="location-outline" size={14} color={ui.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addressLabel}>{user.endereco.label}</Text>
+                <Text style={styles.addressDetails}>{user.endereco.details}</Text>
+              </View>
             </View>
-          </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.addAddressChip}
+              onPress={() => router.push('/adicionar-endereco')}
+            >
+              <Ionicons name="add" size={14} color={ui.brand} />
+              <Text style={styles.addAddressText}>{t('profile.addAddress')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <Text style={styles.userName}>{fullName}</Text>
-        <Text style={styles.userEmail}>{user.telefone}</Text>
-        <Text style={styles.userMeta}>{genderLabel}</Text>
+        <View style={styles.menuContainer}>
+          {menuSections.map((section) => (
+            <View key={section.title} style={styles.sectionWrapper}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
 
-        {user.endereco ? (
-          <View style={styles.addressBox}>
-            <Ionicons name="location-outline" size={14} color={ui.brand} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabel}>{user.endereco.label}</Text>
-              <Text style={styles.addressDetails}>{user.endereco.details}</Text>
-            </View>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.addAddressChip}
-            onPress={() => router.push('/adicionar-endereco')}
-          >
-            <Ionicons name="add" size={14} color={ui.brand} />
-            <Text style={styles.addAddressText}>{t('profile.addAddress')}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={styles.menuContainer}>
-        {menuSections.map((section) => (
-          <View key={section.title} style={styles.sectionWrapper}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-
-            <View style={styles.sectionCard}>
-              {section.items.map((item, index) => (
-                <View key={item.id}>
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    activeOpacity={0.6}
-                    onPress={async () => {
-                      if (item.route === 'whatsapp') {
-                        const ok = await openSupportWhatsApp(t('help.waPrefill'));
-                        if (!ok) {
-                          Alert.alert(t('help.openFailTitle'), t('help.openFailMessage'));
+              <View style={styles.sectionCard}>
+                {section.items.map((item, index) => (
+                  <View key={item.id}>
+                    <TouchableOpacity
+                      style={styles.menuItem}
+                      activeOpacity={0.6}
+                      onPress={async () => {
+                        if (item.route === 'whatsapp') {
+                          const ok = await openSupportWhatsApp(t('help.waPrefill'));
+                          if (!ok) {
+                            Alert.alert(t('help.openFailTitle'), t('help.openFailMessage'));
+                          }
+                        } else if (item.route === 'ajuda') {
+                          router.push('/ajuda');
+                        } else if (item.route === 'dados') {
+                          router.push('/dados-pessoais');
+                        } else if (item.route === 'seguranca') {
+                          router.push('/seguranca');
+                        } else if (item.route === 'anuncios') {
+                          router.push('/meus-anuncios');
+                        } else if (item.route === 'carteira') {
+                          router.push('/gpay');
+                        } else if (item.route === 'notificacoes') {
+                          router.push('/notificacoes');
+                        } else if (item.route === 'tema') {
+                          router.push('/tema');
+                        } else if (item.route === 'idioma') {
+                          router.push('/idioma');
+                        } else if (item.route === 'parceria') {
+                          router.push('/parceria');
                         }
-                      } else if (item.route === 'ajuda') {
-                        router.push('/ajuda');
-                      } else if (item.route === 'dados') {
-                        router.push('/dados-pessoais');
-                      } else if (item.route === 'seguranca') {
-                        router.push('/seguranca');
-                      } else if (item.route === 'anuncios') {
-                        router.push('/meus-anuncios');
-                      } else if (item.route === 'carteira') {
-                        router.push('/gpay');
-                      } else if (item.route === 'notificacoes') {
-                        router.push('/notificacoes');
-                      } else if (item.route === 'tema') {
-                        router.push('/tema');
-                      } else if (item.route === 'idioma') {
-                        router.push('/idioma');
-                      } else if (item.route === 'parceria') {
-                        router.push('/parceria');
-                      }
-                    }}
-                  >
-                    <View style={styles.menuItemLeft}>
-                      <View style={styles.iconBox}>
-                        <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={20} color={ui.brand} />
-                      </View>
-                      <Text style={styles.menuItemText}>{item.name}</Text>
-                    </View>
-
-                    <View style={styles.menuItemRight}>
-                      {item.badge ? (
-                        <View style={styles.badgeBox}>
-                          <Text style={styles.badgeText}>{item.badge}</Text>
+                      }}
+                    >
+                      <View style={styles.menuItemLeft}>
+                        <View style={styles.iconBox}>
+                          <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={20} color={ui.brand} />
                         </View>
-                      ) : null}
+                        <Text style={styles.menuItemText}>{item.name}</Text>
+                      </View>
 
-                      {item.isToggle ? (
-                        <Switch
-                          value={pushNotifications}
-                          onValueChange={handlePushToggle}
-                          trackColor={{ false: ui.border, true: ui.brand }}
-                          thumbColor="#FFF"
-                        />
-                      ) : (
-                        <Ionicons name="chevron-forward" size={16} color={ui.muted} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
+                      <View style={styles.menuItemRight}>
+                        {item.badge ? (
+                          <View style={styles.badgeBox}>
+                            <Text style={styles.badgeText}>{item.badge}</Text>
+                          </View>
+                        ) : null}
 
-                  {index < section.items.length - 1 && <View style={styles.divider} />}
-                </View>
-              ))}
+                        {item.isToggle ? (
+                          <Switch
+                            value={pushNotifications}
+                            onValueChange={handlePushToggle}
+                            trackColor={{ false: ui.border, true: ui.brand }}
+                            thumbColor="#FFF"
+                          />
+                        ) : (
+                          <Ionicons name="chevron-forward" size={16} color={ui.muted} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                    {index < section.items.length - 1 && <View style={styles.divider} />}
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
+      </ScrollView>
+
+      <View style={[styles.logoutFooter, { paddingBottom: tabBarClearance }]}>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          disabled={loggingOut}
+        >
+          {loggingOut ? (
+            <RippleWaveLoader size="small" color={ui.danger} />
+          ) : (
+            <>
+              <Ionicons name="log-out-outline" size={18} color={ui.danger} />
+              <Text style={styles.logoutText}>{t('profile.logout')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <Text style={styles.versionText}>{t('profile.version')}</Text>
       </View>
-
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-        disabled={loggingOut}
-      >
-        {loggingOut ? (
-          <RippleWaveLoader size="small" color={ui.danger} />
-        ) : (
-          <>
-            <Ionicons name="log-out-outline" size={18} color={ui.danger} />
-            <Text style={styles.logoutText}>{t('profile.logout')}</Text>
-          </>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.versionText}>{t('profile.version')}</Text>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -691,6 +694,10 @@ function createStyles(ui: AppUI) {
     },
     badgeText: { fontSize: 10, color: ui.success, fontWeight: 'bold' },
     divider: { height: 1, backgroundColor: ui.divider, marginLeft: 62 },
+    logoutFooter: {
+      backgroundColor: ui.bg,
+      paddingTop: 8,
+    },
     logoutButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -701,15 +708,14 @@ function createStyles(ui: AppUI) {
       borderRadius: 16,
       borderWidth: 1,
       borderColor: ui.dangerSoft,
-      marginTop: 10,
     },
     logoutText: { fontSize: 14, fontWeight: '600', color: ui.danger, marginLeft: 6 },
     versionText: {
       fontSize: 11,
       color: ui.muted,
       textAlign: 'center',
-      marginTop: 24,
-      marginBottom: 8,
+      marginTop: 12,
+      marginBottom: 4,
     },
   });
 }
