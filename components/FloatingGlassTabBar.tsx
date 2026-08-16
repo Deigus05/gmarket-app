@@ -49,6 +49,7 @@ const ICONS: Record<
 const SPRING = { damping: 18, stiffness: 220, mass: 0.85 };
 const PILL_INSET = 4;
 const PILL_V_INSET = 8;
+const AVATAR_SIZE = 22;
 
 const canUseLiquidGlass =
   Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
@@ -399,6 +400,7 @@ const styles = StyleSheet.create({
   },
   shell: {
     height: 64,
+    maxHeight: 64,
     borderRadius: 32,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth * 2,
@@ -431,17 +433,19 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   avatarWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.85)',
     backgroundColor: 'rgba(120,120,120,0.25)',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   avatar: {
-    width: '100%',
-    height: '100%',
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
   },
   activePill: {
     position: 'absolute',

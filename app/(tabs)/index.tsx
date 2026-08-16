@@ -1870,7 +1870,7 @@ export default function HomeScreen() {
               animatedProps={stickyAnimatedProps}
             >
               <LinearGradient
-                colors={isDark ? ['#0E0E0E', '#161616'] : [colors.deep, colors.mid]}
+                colors={[colors.deep, colors.mid]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.stickyInner, { paddingTop: insets.top + 8 }]}

@@ -1,4 +1,4 @@
-// Android + web: tab bar flutuante de sempre.
+// Tab bar flutuante (iOS, Android e web).
 import { Tabs } from 'expo-router';
 import { FloatingGlassTabBar } from '@/components/FloatingGlassTabBar';
 import { useLocale } from '@/components/LocaleContext';
