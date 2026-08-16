@@ -453,7 +453,20 @@ export default function ProductDetailScreen() {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [isFavorite, setIsFavorite] = useState(false);
   const [cartQuantity, setCartQuantity] = useState(0);
-  const productId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const productId = (() => {
+    const raw = params.id ?? params.productId;
+    if (Array.isArray(raw)) return raw[0];
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        return new URLSearchParams(window.location.search).get('id') || undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  })();
+
   const mainGalleryRef = useRef<FlatList<string>>(null);
   const modalGalleryRef = useRef<any>(null);
   const thumbListRef = useRef<FlatList<string>>(null);

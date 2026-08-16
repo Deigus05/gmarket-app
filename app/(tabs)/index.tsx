@@ -1377,7 +1377,7 @@ export default function HomeScreen() {
 
   const addToCartFromHome = useCallback(async (product: ProductItemProps) => {
     if (Platform.OS !== 'web') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
     }
 
     try {
@@ -1427,11 +1427,7 @@ export default function HomeScreen() {
       if (token) void syncCartToServer(token, cartList);
 
       if (Platform.OS !== 'web') {
-        void Haptics.notificationAsync(
-          alreadyInCart
-            ? Haptics.NotificationFeedbackType.Warning
-            : Haptics.NotificationFeedbackType.Success,
-        );
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (error) {
       console.log('Erro ao atualizar carrinho na home:', error);
@@ -1439,10 +1435,9 @@ export default function HomeScreen() {
   }, [token]);
 
   const openProduct = useCallback((id: string) => {
-    router.push({
-      pathname: '/productDetail',
-      params: { id },
-    });
+    if (!id) return;
+    // Query string explícita — mais fiável no export estático / GitHub Pages.
+    router.push(`/productDetail?id=${encodeURIComponent(id)}`);
   }, [router]);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -1563,11 +1558,7 @@ export default function HomeScreen() {
         {/* Hero opaco full-bleed: no pull desce COM o conteúdo, não o fundo atrás */}
         <View style={styles.heroZone}>
           <LinearGradient
-            colors={
-              isDark
-                ? ['#0E0E0E', '#141414', '#1A1A1A', '#121212', '#0E0E0E']
-                : [colors.deep, colors.mid, colors.soft, colors.mist, colors.surface]
-            }
+            colors={[colors.deep, colors.mid, colors.soft, colors.mist, colors.surface]}
             locations={[0, 0.22, 0.48, 0.78, 1]}
             start={{ x: 0.05, y: 0 }}
             end={{ x: 0.95, y: 1 }}
@@ -2068,7 +2059,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       left: 0,
       right: 0,
       zIndex: 1000,
-      backgroundColor: isDark ? '#0E0E0E' : C.deep,
+      backgroundColor: C.deep,
       shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
@@ -2085,7 +2076,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
     },
 
     heroZone: {
-      backgroundColor: isDark ? '#0E0E0E' : C.deep,
+      backgroundColor: C.deep,
     },
     heroGradient: {
       paddingHorizontal: 14,
@@ -2469,7 +2460,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       position: 'absolute',
       top: isDesktop ? 6 : 8,
       right: isDesktop ? 6 : 8,
-      backgroundColor: 'rgba(255,255,255,0.92)',
+      backgroundColor: isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.92)',
       borderRadius: 16,
       padding: isDesktop ? 5 : 7,
       zIndex: 2,

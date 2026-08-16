@@ -284,7 +284,7 @@ export default function FavoritesScreen() {
               <TouchableOpacity
                 style={styles.productFavCard}
                 activeOpacity={0.9}
-                onPress={() => router.push({ pathname: '/productDetail', params: { id: item.id } })}
+                onPress={() => router.push(`/productDetail?id=${encodeURIComponent(item.id)}`)}
               >
                 <View style={styles.productFavImgWrap}>
                   <Image

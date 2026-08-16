@@ -96,10 +96,8 @@ export const ProductRail = memo(function ProductRail({
 
   const openProduct = useCallback(
     (id: string) => {
-      router.push({
-        pathname: '/productDetail',
-        params: { id },
-      });
+      if (!id) return;
+      router.push(`/productDetail?id=${encodeURIComponent(id)}`);
     },
     [router],
   );

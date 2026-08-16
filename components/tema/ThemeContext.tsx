@@ -4,10 +4,11 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react';
-import { useColorScheme as useSystemColorScheme } from 'react-native';
+import { Platform, useColorScheme as useSystemColorScheme } from 'react-native';
 
 import {
   AppearanceMode,
@@ -39,8 +40,44 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function readWebScheme(): ColorScheme | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * No web, useColorScheme() e o estado SSR ficam muitas vezes em “light”.
+ * Lemos matchMedia no render do client para o fundo escuro aplicar de imediato.
+ */
+function useResolvedSystemScheme(): ColorScheme | null | undefined {
+  const rnScheme = useSystemColorScheme();
+  const [webScheme, setWebScheme] = useState<ColorScheme | null>(null);
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const sync = () => setWebScheme(mq.matches ? 'dark' : 'light');
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  if (Platform.OS === 'web') {
+    return webScheme ?? readWebScheme() ?? rnScheme;
+  }
+  return rnScheme;
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useSystemColorScheme();
+  const systemScheme = useResolvedSystemScheme();
   const [ready, setReady] = useState(false);
   const [appearance, setAppearanceState] = useState<AppearanceMode>(DEFAULT_APPEARANCE);
   const [paletteId, setPaletteState] = useState<PaletteId>(DEFAULT_PALETTE_ID);

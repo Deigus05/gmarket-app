@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -23,15 +23,26 @@ type AppLaunchIntroProps = {
   onFinished: () => void;
 };
 
+function preferDarkWeb() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Intro: logo GMarket + frase com FocusReveal (vibração por letra).
- * Esconde o splash nativo só depois do overlay branco + logo estarem no ecrã.
+ * Intro: logo GMarket + frase com FocusReveal (vibração por letra só no iOS).
+ * Esconde o splash nativo só depois do overlay + logo estarem no ecrã.
  */
 export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroProps) {
   const insets = useSafeAreaInsets();
   const opacity = useSharedValue(1);
   const [textDone, setTextDone] = useState(false);
   const finishedRef = React.useRef(false);
+  const dark = preferDarkWeb();
+  const styles = useMemo(() => createIntroStyles(dark), [dark]);
 
   const hideSplash = useCallback(() => {
     void hideNativeSplashSafe();
@@ -93,7 +104,7 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
           text={TAGLINE}
           blur={20}
           staggerFrom="start"
-          vibrate
+          vibrate={Platform.OS !== 'android'}
           style={styles.tagline}
           onComplete={() => setTextDone(true)}
         />
@@ -102,33 +113,35 @@ export default function AppLaunchIntro({ visible, onFinished }: AppLaunchIntroPr
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
-    zIndex: 9999,
-    elevation: 9999,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  logo: {
-    width: 280,
-    height: 280,
-  },
-  bottom: {
-    paddingHorizontal: 28,
-    alignItems: 'center',
-  },
-  tagline: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0D47A1',
-    letterSpacing: -0.2,
-    textAlign: 'center',
-    lineHeight: 28,
-  },
-});
+function createIntroStyles(dark: boolean) {
+  return StyleSheet.create({
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: dark ? '#0E0E0E' : '#FFFFFF',
+      zIndex: 9999,
+      elevation: 9999,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    logo: {
+      width: 280,
+      height: 280,
+    },
+    bottom: {
+      paddingHorizontal: 28,
+      alignItems: 'center',
+    },
+    tagline: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: dark ? '#90CAF9' : '#0D47A1',
+      letterSpacing: -0.2,
+      textAlign: 'center',
+      lineHeight: 28,
+    },
+  });
+}

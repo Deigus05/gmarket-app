@@ -220,7 +220,7 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
         interactionRef.current = InteractionManager.runAfterInteractions(() => {
           interactionRef.current = null;
           navigationPendingRef.current = false;
-          router.push({ pathname: '/productDetail', params: { id: productId } });
+          router.push(`/productDetail?id=${encodeURIComponent(productId)}`);
         });
       }, 0);
     },

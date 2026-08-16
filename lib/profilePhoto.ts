@@ -6,6 +6,21 @@ export function isRemotePhotoUrl(uri: string | null | undefined): uri is string 
   return typeof uri === 'string' && /^https?:\/\//i.test(uri.trim());
 }
 
+export function getProfilePhotoUrl(uri: string | null | undefined): string | null {
+  const trimmed = typeof uri === 'string' ? uri.trim() : '';
+  return trimmed || null;
+}
+
+export async function deleteLocalProfilePhoto(userId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const dest = new File(new Directory(Paths.document, 'profile-photos'), `${userId}.jpg`);
+    if (dest.exists) dest.delete();
+  } catch {
+    // ignore
+  }
+}
+
 function isDurableLocalUri(uri: string): boolean {
   if (uri.startsWith('data:')) return true;
   const lower = uri.toLowerCase();

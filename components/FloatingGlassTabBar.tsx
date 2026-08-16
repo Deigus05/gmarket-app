@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
 import { useAppTheme } from '@/components/tema';
 import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
+import { getProfilePhotoUrl } from '@/lib/profilePhoto';
 
 const ICONS: Record<
   string,
@@ -57,7 +58,7 @@ export function FloatingGlassTabBar({ state, descriptors, navigation }: BottomTa
   const { width } = useWindowDimensions();
   const { ui, isDark } = useAppTheme();
   const { user } = useAuth();
-  const profilePhotoUrl = user?.foto_url || null;
+  const profilePhotoUrl = getProfilePhotoUrl(user?.foto_url);
   const [rowWidth, setRowWidth] = useState(0);
 
   // Storefront desktop: navegação no header da home — esconde a tab bar flutuante.
@@ -330,10 +331,17 @@ function TabItem({
   onLongPress: () => void;
 }) {
   const press = useSharedValue(1);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: press.value }],
   }));
+
+  const showAvatar = Boolean(avatarUrl) && !avatarFailed;
 
   return (
     <Pressable
@@ -351,14 +359,20 @@ function TabItem({
       style={styles.item}
     >
       <Animated.View style={[styles.itemInner, animatedStyle]}>
-        {avatarUrl ? (
+        {showAvatar ? (
           <View
             style={[
               styles.avatarWrap,
               focused && { borderColor: activeColor },
             ]}
           >
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
+            <Image
+              source={{ uri: avatarUrl! }}
+              style={styles.avatar}
+              contentFit="cover"
+              recyclingKey={avatarUrl}
+              onError={() => setAvatarFailed(true)}
+            />
           </View>
         ) : (
           <Ionicons name={iconName} size={22} color={focused ? activeColor : inactiveColor} />

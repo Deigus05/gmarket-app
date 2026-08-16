@@ -30,7 +30,7 @@ export default function DadosPessoaisScreen() {
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const { user, isLoggedIn, updatePhoto, deleteAccount } = useAuth();
+  const { user, isLoggedIn, updatePhoto, removePhoto, deleteAccount } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const accountDeletedRef = useRef(false);
@@ -74,6 +74,46 @@ export default function DadosPessoaisScreen() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const confirmRemovePhoto = () => {
+    Alert.alert(t('profile.removePhotoTitle'), t('profile.removePhotoMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.removePhoto'),
+        style: 'destructive',
+        onPress: async () => {
+          setUploading(true);
+          try {
+            const result = await removePhoto();
+            if (!result.ok) {
+              Alert.alert(t('common.error'), result.message || t('profile.photoRemoveError'));
+            }
+          } catch {
+            Alert.alert(t('common.error'), t('profile.photoRemoveError'));
+          } finally {
+            setUploading(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePhotoPress = () => {
+    if (uploading) return;
+    if (!user?.foto_url) {
+      void pickPhoto();
+      return;
+    }
+    Alert.alert(t('profile.changePhoto'), t('profile.photoHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('profile.changePhoto'), onPress: () => void pickPhoto() },
+      {
+        text: t('profile.removePhoto'),
+        style: 'destructive',
+        onPress: confirmRemovePhoto,
+      },
+    ]);
   };
 
   const performDeleteAccount = async () => {
@@ -145,7 +185,7 @@ export default function DadosPessoaisScreen() {
         <View style={styles.photoCard}>
           <TouchableOpacity
             style={styles.avatarWrap}
-            onPress={pickPhoto}
+            onPress={handlePhotoPress}
             activeOpacity={0.85}
             disabled={uploading}
           >
@@ -169,6 +209,17 @@ export default function DadosPessoaisScreen() {
             {user.foto_url ? t('profile.changePhoto') : t('profile.addPhoto')}
           </Text>
           <Text style={styles.photoHint}>{t('profile.photoHint')}</Text>
+          {user.foto_url ? (
+            <TouchableOpacity
+              style={styles.removePhotoBtn}
+              onPress={confirmRemovePhoto}
+              activeOpacity={0.85}
+              disabled={uploading}
+            >
+              <Ionicons name="trash-outline" size={16} color={ui.danger} />
+              <Text style={styles.removePhotoText}>{t('profile.removePhoto')}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <Text style={styles.sectionLabel}>{t('profile.accountInfo')}</Text>
@@ -348,6 +399,20 @@ function createStyles(ui: AppUI) {
       marginTop: 6,
       lineHeight: 18,
     },
+    removePhotoBtn: {
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: ui.card,
+      borderWidth: 1,
+      borderColor: ui.danger,
+    },
+    removePhotoText: { color: ui.danger, fontSize: 13, fontWeight: '700' },
     sectionLabel: {
       fontSize: 11,
       fontWeight: '600',

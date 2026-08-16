@@ -2,17 +2,20 @@
 import { Tabs } from 'expo-router';
 import { FloatingGlassTabBar } from '@/components/FloatingGlassTabBar';
 import { useLocale } from '@/components/LocaleContext';
+import { useAppTheme } from '@/components/tema';
 
 export default function AppTabLayout() {
   const { t } = useLocale();
+  const { ui } = useAppTheme();
 
   return (
     <Tabs
       tabBar={(props) => <FloatingGlassTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#2E7D32',
-        tabBarInactiveTintColor: '#888888',
+        sceneStyle: { backgroundColor: ui.bg },
+        tabBarActiveTintColor: ui.tabActive,
+        tabBarInactiveTintColor: ui.tabInactive,
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',

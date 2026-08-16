@@ -312,10 +312,7 @@ export default function LojaPerfilScreen() {
                   style={styles.productCard}
                   activeOpacity={0.8}
                   onPress={() =>
-                    router.push({
-                      pathname: '/productDetail',
-                      params: { id: item.id },
-                    })
+                    router.push(`/productDetail?id=${encodeURIComponent(item.id)}`)
                   }
                 >
                   <View style={styles.imageContainer}>

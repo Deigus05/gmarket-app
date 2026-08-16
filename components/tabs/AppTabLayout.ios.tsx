@@ -4,12 +4,14 @@ import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useAuth } from '@/components/AuthContext';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme } from '@/components/tema';
+import { isRemotePhotoUrl } from '@/lib/profilePhoto';
 
 export default function IosAppTabLayout() {
   const { t } = useLocale();
   const { ui, isDark } = useAppTheme();
   const { user } = useAuth();
-  const profilePhotoUrl = user?.foto_url?.trim() || null;
+  const rawPhoto = user?.foto_url;
+  const profilePhotoUrl = isRemotePhotoUrl(rawPhoto) ? rawPhoto.trim() : null;
 
   return (
     <NativeTabs

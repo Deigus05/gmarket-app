@@ -300,7 +300,7 @@ export default function SearchScreen() {
   }, []);
 
   const openProduct = useCallback((product: Product) => {
-    router.push({ pathname: '/productDetail', params: { id: product.id } });
+    router.push(`/productDetail?id=${encodeURIComponent(product.id)}`);
   }, [router]);
 
   const openStore = useCallback((store: LiveStore) => {

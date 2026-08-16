@@ -1160,6 +1160,19 @@ export async function uploadCustomerPhoto(
   }
 }
 
+export async function deleteCustomerPhoto(token: string): Promise<ApiResult<Customer>> {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/photo`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return parseAuthResponse<Customer>(response);
+  } catch (error) {
+    console.log('Erro ao remover foto de perfil:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
 export async function logoutCustomer(token: string): Promise<void> {
   try {
     await fetch(`${API_URL}/api/auth/logout`, {

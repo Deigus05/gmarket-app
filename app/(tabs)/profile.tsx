@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -19,6 +20,7 @@ import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import { registerForPushNotificationsAsync } from '@/components/notifications';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { compressImageForUpload } from '@/lib/imageOptimization';
 import { openSupportWhatsApp } from '@/lib/support';
 
 const PUSH_PREF_KEY = '@gmarket:push_notifications';
@@ -52,9 +54,10 @@ export default function ProfileScreen() {
   const { t } = useLocale();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const { user, token, loading, isLoggedIn, logout } = useAuth();
+  const { user, token, loading, isLoggedIn, logout, updatePhoto, removePhoto } = useAuth();
   const [pushNotifications, setPushNotifications] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [updatingPhoto, setUpdatingPhoto] = useState(false);
   const guestBg = isDark ? GUEST_BG_DARK : GUEST_BG_LIGHT;
 
   const menuSections: MenuSection[] = useMemo(
@@ -148,6 +151,73 @@ export default function ProfileScreen() {
           await logout();
           setLoggingOut(false);
         },
+      },
+    ]);
+  };
+
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(t('profile.photoPermissionTitle'), t('profile.photoPermissionMessage'));
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    setUpdatingPhoto(true);
+    try {
+      const compressed = await compressImageForUpload(result.assets[0].uri, 720, 0.8);
+      await updatePhoto(compressed);
+    } catch {
+      Alert.alert(t('common.error'), t('profile.photoUploadError'));
+    } finally {
+      setUpdatingPhoto(false);
+    }
+  };
+
+  const confirmRemovePhoto = () => {
+    Alert.alert(t('profile.removePhotoTitle'), t('profile.removePhotoMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.removePhoto'),
+        style: 'destructive',
+        onPress: async () => {
+          setUpdatingPhoto(true);
+          try {
+            const result = await removePhoto();
+            if (!result.ok) {
+              Alert.alert(t('common.error'), result.message || t('profile.photoRemoveError'));
+            }
+          } catch {
+            Alert.alert(t('common.error'), t('profile.photoRemoveError'));
+          } finally {
+            setUpdatingPhoto(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePhotoPress = () => {
+    if (updatingPhoto) return;
+    if (!user?.foto_url) {
+      void pickPhoto();
+      return;
+    }
+    Alert.alert(t('profile.changePhoto'), t('profile.photoHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('profile.changePhoto'), onPress: () => void pickPhoto() },
+      {
+        text: t('profile.removePhoto'),
+        style: 'destructive',
+        onPress: confirmRemovePhoto,
       },
     ]);
   };
@@ -272,13 +342,26 @@ export default function ProfileScreen() {
     >
       <View style={styles.profileHeaderCard}>
         <View style={styles.avatarWrapper}>
-          {user.foto_url ? (
-            <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarInitials}>{getInitials(user.nome, user.apelido)}</Text>
+          <TouchableOpacity
+            onPress={handlePhotoPress}
+            activeOpacity={0.85}
+            disabled={updatingPhoto}
+          >
+            {user.foto_url ? (
+              <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitials}>{getInitials(user.nome, user.apelido)}</Text>
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
+              {updatingPhoto ? (
+                <RippleWaveLoader size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="camera" size={14} color="#FFF" />
+              )}
             </View>
-          )}
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.userName}>{fullName}</Text>
@@ -518,6 +601,19 @@ function createStyles(ui: AppUI) {
       justifyContent: 'center',
     },
     avatarInitials: { color: '#FFF', fontSize: 26, fontWeight: '800' },
+    cameraBadge: {
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: ui.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: ui.card,
+    },
     userName: { fontSize: 18, fontWeight: '700', color: ui.text },
     userEmail: { fontSize: 13, color: ui.muted, marginTop: 2 },
     userMeta: { fontSize: 12, color: ui.brand, fontWeight: '600', marginTop: 4 },

@@ -15,10 +15,19 @@ export function WebThemeSync() {
 
     const root = document.documentElement;
     const body = document.body;
+    const appRoot = document.getElementById('root');
+
     root.style.colorScheme = isDark ? 'dark' : 'light';
     root.style.backgroundColor = ui.bg;
+    root.classList.toggle('gm-dark', isDark);
+    root.classList.toggle('gm-light', !isDark);
+
     body.style.backgroundColor = ui.bg;
     body.style.color = ui.text;
+
+    if (appRoot) {
+      appRoot.style.backgroundColor = ui.bg;
+    }
 
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {

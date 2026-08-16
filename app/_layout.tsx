@@ -1,6 +1,4 @@
 import 'react-native-gesture-handler';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
@@ -53,8 +51,10 @@ const SHOW_LAUNCH_INTRO = true;
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
-    ...Ionicons.font,
+    // Carregar de assets/fonts — NÃO de node_modules.
+    // O GitHub Pages / gh-pages ignora caminhos com "node_modules" → ícones 404.
+    ionicons: require('../assets/fonts/Ionicons.ttf'),
+    FontAwesome: require('../assets/fonts/FontAwesome.ttf'),
   });
   const [introVisible, setIntroVisible] = useState(SHOW_LAUNCH_INTRO);
   const [fontsTimedOut, setFontsTimedOut] = useState(false);
@@ -167,7 +167,12 @@ function ThemedNavigation() {
     <NavThemeProvider value={navTheme}>
       <WebThemeSync />
       <StatusBar style={ui.statusBar} />
-      <Stack>
+      <Stack
+        screenOptions={{
+          contentStyle: { backgroundColor: ui.bg },
+          headerStyle: { backgroundColor: ui.bg },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="productDetail" options={{ headerShown: false }} />
         <Stack.Screen name="propertyDetail" options={{ headerShown: false }} />
@@ -241,13 +246,14 @@ const errorStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   rootWhileIntro: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   boot: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },

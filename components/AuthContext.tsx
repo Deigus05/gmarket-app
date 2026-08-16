@@ -14,6 +14,7 @@ import {
   Customer,
   changeCustomerPassword,
   deleteCustomerAccount,
+  deleteCustomerPhoto,
   fetchCurrentCustomer,
   loginCustomer,
   logoutCustomer,
@@ -27,10 +28,15 @@ import {
   AccountDataKey,
   bindAccount,
   getAccountItem,
+  removeAccountItem,
   setAccountItem,
   unbindAccount,
 } from '@/lib/accountStorage';
-import { isRemotePhotoUrl, persistProfilePhotoLocally } from '@/lib/profilePhoto';
+import {
+  deleteLocalProfilePhoto,
+  isRemotePhotoUrl,
+  persistProfilePhotoLocally,
+} from '@/lib/profilePhoto';
 
 const AUTH_TOKEN_KEY = '@gmarket:auth_token';
 const AUTH_USER_CACHE_KEY = '@gmarket:auth_user_cache';
@@ -165,6 +171,7 @@ type AuthContextValue = {
     novaSenha: string;
   }) => Promise<{ ok: true } | { ok: false; message: string }>;
   updatePhoto: (imageUri: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  removePhoto: () => Promise<{ ok: true } | { ok: false; message: string }>;
   updateProfile: (input: {
     nome?: string;
     apelido?: string;
@@ -383,6 +390,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true as const };
   }, [token, user]);
 
+  const removePhoto = useCallback(async () => {
+    if (!token || !user) return { ok: false as const, message: 'Sessão inválida.' };
+
+    await removeAccountItem(AccountDataKey.profilePhoto);
+    try {
+      await deleteLocalProfilePhoto(user.id);
+    } catch {
+      // ignore
+    }
+
+    const result = await deleteCustomerPhoto(token);
+    const nextUser: Customer = result.success
+      ? { ...result.data, foto_url: null }
+      : { ...user, foto_url: null };
+
+    await writeCachedUser(nextUser);
+    setUser(nextUser);
+    return { ok: true as const };
+  }, [token, user]);
+
   const updateProfile = useCallback(async (input: {
     nome?: string;
     apelido?: string;
@@ -424,6 +451,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveAddress,
       changePassword,
       updatePhoto,
+      removePhoto,
       updateProfile,
       logout,
       deleteAccount,
@@ -438,6 +466,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveAddress,
       changePassword,
       updatePhoto,
+      removePhoto,
       updateProfile,
       logout,
       deleteAccount,
