@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
@@ -19,6 +20,7 @@ import { PresenceBootstrap } from '@/components/PresenceBootstrap';
 import { PromoInterstitialBootstrap } from '@/components/PromoInterstitialBootstrap';
 import '@/components/notifications';
 import { ThemeProvider, useAppTheme } from '@/components/tema';
+import { WebThemeSync } from '@/components/WebThemeSync';
 import { hideNativeSplashSafe, keepNativeSplash } from '@/lib/splash';
 import { prefetchPlatformContacts } from '@/lib/support';
 
@@ -52,6 +54,7 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
+    ...Ionicons.font,
   });
   const [introVisible, setIntroVisible] = useState(SHOW_LAUNCH_INTRO);
   const [fontsTimedOut, setFontsTimedOut] = useState(false);
@@ -162,6 +165,7 @@ function ThemedNavigation() {
 
   return (
     <NavThemeProvider value={navTheme}>
+      <WebThemeSync />
       <StatusBar style={ui.statusBar} />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { LiveStore } from '@/components/api';
 import { StoreAvatar } from '@/components/StoreAvatar';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 type Props = {
   stores: LiveStore[];
@@ -20,7 +21,8 @@ type Props = {
 export const RecommendedStores = memo(function RecommendedStores({ stores }: Props) {
   const router = useRouter();
   const { ui } = useAppTheme();
-  const styles = useMemo(() => createStyles(ui), [ui]);
+  const { isDesktop } = useBreakpoint();
+  const styles = useMemo(() => createStyles(ui, isDesktop), [ui, isDesktop]);
 
   if (!stores.length) return null;
 
@@ -85,22 +87,23 @@ export const RecommendedStores = memo(function RecommendedStores({ stores }: Pro
   );
 });
 
-function createStyles(ui: AppUI) {
+function createStyles(ui: AppUI, isDesktop: boolean) {
+  const pad = isDesktop ? 0 : 12;
   return StyleSheet.create({
     section: {
       marginTop: 8,
       marginBottom: 10,
     },
     title: {
-      fontSize: 17,
+      fontSize: isDesktop ? 14 : 17,
       fontWeight: '800',
       color: ui.text,
-      letterSpacing: -0.3,
-      paddingHorizontal: 12,
-      marginBottom: 10,
+      letterSpacing: -0.2,
+      paddingHorizontal: pad,
+      marginBottom: 8,
     },
     list: {
-      paddingHorizontal: 10,
+      paddingHorizontal: isDesktop ? 0 : 10,
       gap: 10,
       alignItems: 'stretch',
       paddingBottom: 2,

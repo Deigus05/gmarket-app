@@ -16,6 +16,7 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import Animated, {
@@ -53,10 +54,16 @@ const canUseLiquidGlass =
 
 export function FloatingGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { ui, isDark } = useAppTheme();
   const { user } = useAuth();
   const profilePhotoUrl = user?.foto_url || null;
   const [rowWidth, setRowWidth] = useState(0);
+
+  // Storefront desktop: navegação no header da home — esconde a tab bar flutuante.
+  if (Platform.OS === 'web' && width >= 1024) {
+    return null;
+  }
 
   const tabCount = state.routes.length;
   const tabWidth = tabCount > 0 && rowWidth > 0 ? rowWidth / tabCount : 0;

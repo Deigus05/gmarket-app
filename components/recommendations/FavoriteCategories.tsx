@@ -13,6 +13,7 @@ import type { FavoriteCategory } from '@/components/api';
 import { trackUserActivity } from '@/components/api';
 import { useAuth } from '@/components/AuthContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 type Props = {
   categories: FavoriteCategory[];
@@ -24,7 +25,8 @@ export const FavoriteCategories = memo(function FavoriteCategories({
   const router = useRouter();
   const { token } = useAuth();
   const { ui } = useAppTheme();
-  const styles = useMemo(() => createStyles(ui), [ui]);
+  const { isDesktop } = useBreakpoint();
+  const styles = useMemo(() => createStyles(ui, isDesktop), [ui, isDesktop]);
 
   if (!categories.length) return null;
 
@@ -66,22 +68,23 @@ export const FavoriteCategories = memo(function FavoriteCategories({
   );
 });
 
-function createStyles(ui: AppUI) {
+function createStyles(ui: AppUI, isDesktop: boolean) {
+  const pad = isDesktop ? 0 : 12;
   return StyleSheet.create({
     section: {
       marginTop: 8,
       marginBottom: 10,
     },
     title: {
-      fontSize: 17,
+      fontSize: isDesktop ? 14 : 17,
       fontWeight: '800',
       color: ui.text,
-      letterSpacing: -0.3,
-      paddingHorizontal: 12,
-      marginBottom: 10,
+      letterSpacing: -0.2,
+      paddingHorizontal: pad,
+      marginBottom: 8,
     },
     list: {
-      paddingHorizontal: 12,
+      paddingHorizontal: pad,
       gap: 8,
     },
     chip: {

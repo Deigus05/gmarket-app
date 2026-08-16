@@ -5,10 +5,18 @@
  *
  * Defina GOOGLE_MAPS_API_KEY no .env (local) ou no EAS Environment
  * (development / preview / production).
+ *
+ * DEPLOY_TARGET=gh-pages → baseUrl /gmarket-app (GitHub Pages).
+ * Cloudflare / domínio próprio → sem DEPLOY_TARGET (raiz /).
  */
 module.exports = ({ config }) => {
   const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY ?? '';
   const isEasBuild = process.env.EAS_BUILD === 'true';
+  const deployTarget = process.env.DEPLOY_TARGET ?? '';
+  const webOrigin = (
+    process.env.EXPO_PUBLIC_WEB_URL?.trim() || 'https://www.gmbissau.com'
+  ).replace(/\/$/, '');
+  const baseUrl = deployTarget === 'gh-pages' ? '/gmarket-app' : '';
 
   if (isEasBuild && !googleMapsApiKey) {
     console.warn(
@@ -17,8 +25,26 @@ module.exports = ({ config }) => {
     );
   }
 
+  const plugins = (config.plugins ?? []).map((plugin) => {
+    if (Array.isArray(plugin) && plugin[0] === 'expo-router') {
+      return [
+        'expo-router',
+        {
+          ...(plugin[1] ?? {}),
+          origin: webOrigin,
+        },
+      ];
+    }
+    return plugin;
+  });
+
   return {
     ...config,
+    plugins,
+    experiments: {
+      ...(config.experiments ?? {}),
+      ...(baseUrl ? { baseUrl } : {}),
+    },
     ios: {
       ...config.ios,
       config: {

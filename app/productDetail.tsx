@@ -6,6 +6,8 @@ import { PulsatingDots } from '@/components/PulsatingDots';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { StarRating } from '@/components/StarRating';
 import { useAppTheme } from '@/components/tema';
+import { HomeDesktopHeader } from '@/components/home/HomeDesktopHeader';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { getCartJson, setCartJson, setCheckoutDraftJson } from '@/lib/cartStorage';
 import { optimizedImageUrl } from '@/lib/imageOptimization';
 import { mergeProductReviews } from '@/lib/localReviews';
@@ -62,11 +64,9 @@ import {
     trackUserActivity,
 } from '../components/api';
 
-const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const REVIEW_CARD_WIDTH = Math.min(280, width * 0.72);
+const { width: WINDOW_WIDTH_FALLBACK, height: SCREEN_HEIGHT_FALLBACK } = Dimensions.get('window');
+const REVIEW_CARD_WIDTH_FALLBACK = Math.min(280, WINDOW_WIDTH_FALLBACK * 0.72);
 const IMAGE_PAD = 12;
-const IMAGE_WIDTH = Math.round((width - IMAGE_PAD * 2) * 0.95);
-const IMAGE_HEIGHT = Math.round(IMAGE_WIDTH * 1.35);
 const THUMB_SIZE = 58;
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800';
 
@@ -394,6 +394,18 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { ui, colors, isDark } = useAppTheme();
+  const layout = useBreakpoint();
+  const { isDesktop, width: rawWinWidth, height: winHeight, contentMax } = layout;
+  // No web o width pode começar a 0 antes do layout — largura negativa rebenta a galeria.
+  const winWidth = Math.max(rawWinWidth || 0, WINDOW_WIDTH_FALLBACK || 390);
+  const SCREEN_HEIGHT = Math.max(winHeight || 0, SCREEN_HEIGHT_FALLBACK || 700);
+  const imageWidth = isDesktop
+    ? Math.min(440, Math.round(Math.min(winWidth, contentMax) * 0.4))
+    : Math.round((winWidth - IMAGE_PAD * 2) * 0.95);
+  const imageHeight = isDesktop
+    ? Math.round(imageWidth * 1.12)
+    : Math.round(imageWidth * 1.35);
+  const REVIEW_CARD_WIDTH = Math.min(280, winWidth * 0.72);
   const C = useMemo<DetailPalette>(() => ({
     mist: ui.bg,
     soft: ui.bg,
@@ -410,7 +422,17 @@ export default function ProductDetailScreen() {
     graySoft: ui.input,
     line: ui.border,
   }), [ui, colors.accent]);
-  const styles = useMemo(() => createStyles(C, isDark), [C, isDark]);
+  const styles = useMemo(
+    () => createStyles(C, isDark, {
+      imageWidth,
+      imageHeight,
+      isDesktop,
+      screenHeight: SCREEN_HEIGHT,
+      screenWidth: winWidth || WINDOW_WIDTH_FALLBACK,
+      reviewCardWidth: REVIEW_CARD_WIDTH,
+    }),
+    [C, isDark, imageWidth, imageHeight, isDesktop, SCREEN_HEIGHT, winWidth, REVIEW_CARD_WIDTH],
+  );
   const { isLoggedIn, token } = useAuth();
   const params = useLocalSearchParams();
   const [adding, setAdding] = useState(false);
@@ -826,11 +848,11 @@ export default function ProductDetailScreen() {
     const safeIndex = Math.max(0, Math.min(index, displayImages.length - 1));
     setActiveImage(safeIndex);
     mainGalleryRef.current?.scrollToOffset({
-      offset: safeIndex * IMAGE_WIDTH,
+      offset: safeIndex * imageWidth,
       animated: animate,
     });
     modalGalleryRef.current?.scrollToOffset({
-      offset: safeIndex * width,
+      offset: safeIndex * winWidth,
       animated: animate,
     });
     scrollThumbTo(safeIndex);
@@ -918,7 +940,7 @@ export default function ProductDetailScreen() {
     gallerySheetY.value = SCREEN_HEIGHT;
     const timer = setTimeout(() => {
       modalGalleryRef.current?.scrollToOffset({
-        offset: activeImage * width,
+        offset: activeImage * winWidth,
         animated: false,
       });
       scrollThumbTo(activeImage);
@@ -1171,13 +1193,19 @@ export default function ProductDetailScreen() {
   }
 
   return (
-    <View style={styles.mainWrapper}>
-      <LinearGradient colors={[C.soft, C.mist, C.white]} style={StyleSheet.absoluteFill} />
+    <View style={[styles.mainWrapper, { backgroundColor: isDark ? '#0E0E0E' : ui.bg }]}>
+      {isDesktop || isDark ? null : (
+        <LinearGradient colors={[C.soft, C.mist, C.white]} style={StyleSheet.absoluteFill} />
+      )}
+      {isDesktop ? <HomeDesktopHeader /> : null}
 
       <Animated.View style={{ opacity: contentOpacity, flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: dockHeight + 24 }}
+        contentContainerStyle={[
+          { paddingBottom: dockHeight + 24 },
+          isDesktop && styles.desktopScrollContent,
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1189,8 +1217,9 @@ export default function ProductDetailScreen() {
           />
         }
       >
-        <View style={[styles.imageSection, { paddingTop: Math.max(insets.top - 2, 8) }]}>
-          <View style={styles.imageCard}>
+        <View style={isDesktop ? styles.desktopTopRow : undefined}>
+        <View style={[styles.imageSection, isDesktop && styles.imageSectionDesktop, !isDesktop && { paddingTop: Math.max(insets.top - 2, 8) }]}>
+          <View style={[styles.imageCard, isDesktop && styles.imageCardDesktop]}>
             <FlatList
               ref={mainGalleryRef}
               key={`${product.id}-${selectedCombination?.image_url || 'product-gallery'}`}
@@ -1201,12 +1230,12 @@ export default function ProductDetailScreen() {
               decelerationRate="fast"
               keyExtractor={(image, index) => `${image}-${index}`}
               getItemLayout={(_, index) => ({
-                length: IMAGE_WIDTH,
-                offset: IMAGE_WIDTH * index,
+                length: imageWidth,
+                offset: imageWidth * index,
                 index,
               })}
               onMomentumScrollEnd={({ nativeEvent }) => {
-                const index = Math.round(nativeEvent.contentOffset.x / IMAGE_WIDTH);
+                const index = Math.round(nativeEvent.contentOffset.x / imageWidth);
                 setActiveImage(index);
               }}
               renderItem={({ item, index }) => (
@@ -1241,7 +1270,7 @@ export default function ProductDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.detailsContentBox}>
+        <View style={[styles.detailsContentBox, isDesktop && styles.detailsAside]}>
           {product.category?.name ? (
             <View style={styles.categoryPill}>
               <Text style={styles.categoryText}>{product.category.name}</Text>
@@ -1414,6 +1443,62 @@ export default function ProductDetailScreen() {
             </Text>
           </View>
 
+          {isDesktop ? (
+            <View style={styles.desktopBuyCard}>
+              <Text style={styles.premiumBlackPrice}>
+                {displayRegularPrice.toLocaleString()} CFA
+              </Text>
+              <View style={styles.desktopBuyActions}>
+                {cartQuantity > 0 && canAddToCart ? (
+                  <View style={styles.qtyDock}>
+                    <TouchableOpacity
+                      style={styles.qtyDockBtn}
+                      onPress={() => handleQuantityChange('minus')}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.qtyDockSymbol}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.qtyDockValue}>{cartQuantity}</Text>
+                    <TouchableOpacity
+                      style={styles.qtyDockBtn}
+                      onPress={() => handleQuantityChange('plus')}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.qtyDockSymbol}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.addCartBtn, !canAddToCart && styles.addCartBtnDisabled]}
+                    onPress={handleAddToCart}
+                    disabled={adding || buying || !canAddToCart}
+                    activeOpacity={0.88}
+                  >
+                    {adding ? (
+                      <RippleWaveLoader size="small" color={C.ink} />
+                    ) : (
+                      <Text style={[styles.addCartText, !canAddToCart && styles.addCartTextDisabled]}>
+                        {t('product.add')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                <BuyNowButton
+                  disabled={!canAddToCart}
+                  loading={buying}
+                  label={t('product.buyNow')}
+                  onPress={handleBuyNow}
+                  styles={styles}
+                  ink={C.ink}
+                  isDark={isDark}
+                />
+              </View>
+            </View>
+          ) : null}
+        </View>
+        </View>
+
+        <View style={[styles.detailsContentBox, isDesktop && styles.detailsFull]}>
           <View style={styles.infoDividerLine} />
           <Text style={styles.sectionLabelTitle}>{t('product.description')}</Text>
           <Text style={styles.bodyDescriptionParagraph}>
@@ -1624,6 +1709,7 @@ export default function ProductDetailScreen() {
       ) : null}
 
       {/* Botões fixos por cima da foto — permanecem ao scroll */}
+      {!isDesktop ? (
       <View
         pointerEvents="box-none"
         style={[styles.fixedTopActions, { top: Math.max(insets.top, 10) + 6 }]}
@@ -1648,8 +1734,10 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      ) : null}
 
       {/* Barra fixa acima da zona da tab bar */}
+      {!isDesktop ? (
       <View style={[styles.fixedBottomDock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.dockGlass}>
           {cartQuantity > 0 && canAddToCart ? (
@@ -1711,6 +1799,7 @@ export default function ProductDetailScreen() {
           />
         </View>
       </View>
+      ) : null}
 
       <Modal
         visible={galleryOpen}
@@ -1755,16 +1844,16 @@ export default function ProductDetailScreen() {
                     decelerationRate="fast"
                     keyExtractor={(image, index) => `modal-${image}-${index}`}
                     getItemLayout={(_, index) => ({
-                      length: width,
-                      offset: width * index,
+                      length: winWidth,
+                      offset: winWidth * index,
                       index,
                     })}
                     onMomentumScrollEnd={({ nativeEvent }) => {
-                      const index = Math.round(nativeEvent.contentOffset.x / width);
+                      const index = Math.round(nativeEvent.contentOffset.x / winWidth);
                       setActiveImage(index);
                       setGalleryZoomState(false);
                       mainGalleryRef.current?.scrollToOffset({
-                        offset: index * IMAGE_WIDTH,
+                        offset: index * imageWidth,
                         animated: false,
                       });
                       scrollThumbTo(index);
@@ -1776,7 +1865,7 @@ export default function ProductDetailScreen() {
                           <ZoomableImage
                             key={`${item}-${index}-${index === activeImage ? 'focus' : 'idle'}`}
                             uri={optimizedImageUrl(item, 'detail')}
-                            boxWidth={width}
+                            boxWidth={winWidth}
                             boxHeight={slideH}
                             onZoomActiveChange={setGalleryZoomState}
                             pagerGesture={galleryPagerGesture}
@@ -1872,12 +1961,12 @@ export default function ProductDetailScreen() {
               showsHorizontalScrollIndicator={false}
               initialScrollIndex={reviewPhotoViewer.index}
               getItemLayout={(_, index) => ({
-                length: width,
-                offset: width * index,
+                length: winWidth,
+                offset: winWidth * index,
                 index,
               })}
               onMomentumScrollEnd={({ nativeEvent }) => {
-                const index = Math.round(nativeEvent.contentOffset.x / Math.max(width, 1));
+                const index = Math.round(nativeEvent.contentOffset.x / Math.max(winWidth, 1));
                 setReviewPhotoViewer((prev) => (prev ? { ...prev, index } : prev));
               }}
               keyExtractor={(uri, index) => `review-photo-${index}-${uri}`}
@@ -1901,9 +1990,63 @@ export default function ProductDetailScreen() {
   );
 }
 
-function createStyles(C: DetailPalette, isDark: boolean) {
+function createStyles(
+  C: DetailPalette,
+  isDark: boolean,
+  layout: {
+    imageWidth: number;
+    imageHeight: number;
+    isDesktop: boolean;
+    screenHeight: number;
+    screenWidth: number;
+    reviewCardWidth: number;
+  },
+) {
+  const { imageWidth, imageHeight, isDesktop, screenHeight, screenWidth, reviewCardWidth } = layout;
   return StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: C.mist },
+  mainWrapper: { flex: 1, backgroundColor: isDark ? '#0E0E0E' : C.mist },
+  desktopScrollContent: {
+    maxWidth: 1360,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  desktopTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 20,
+    marginBottom: 8,
+  },
+  imageSectionDesktop: {
+    width: imageWidth,
+    flexShrink: 0,
+    paddingTop: 0,
+  },
+  imageCardDesktop: {
+    borderRadius: 16,
+  },
+  detailsAside: {
+    flex: 1,
+    minWidth: 280,
+    marginTop: 0,
+    paddingTop: 0,
+  },
+  detailsFull: {
+    marginTop: 8,
+  },
+  desktopBuyCard: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+    gap: 12,
+  },
+  desktopBuyActions: {
+    gap: 10,
+  },
   refreshLoader: {
     position: 'absolute',
     left: 0,
@@ -1914,7 +2057,7 @@ function createStyles(C: DetailPalette, isDark: boolean) {
   },
   centeredState: {
     flex: 1,
-    backgroundColor: C.mist,
+    backgroundColor: isDark ? '#0E0E0E' : C.mist,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -1968,8 +2111,8 @@ function createStyles(C: DetailPalette, isDark: boolean) {
   },
   imageSection: { paddingHorizontal: IMAGE_PAD, marginBottom: 8, alignItems: 'center' },
   imageCard: {
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
+    width: imageWidth,
+    height: imageHeight,
     borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: C.white,
@@ -1983,7 +2126,7 @@ function createStyles(C: DetailPalette, isDark: boolean) {
     borderWidth: Platform.OS === 'ios' ? 1 : 0,
     borderColor: 'rgba(255,255,255,0.9)',
   },
-  imageSlide: { width: IMAGE_WIDTH, height: IMAGE_HEIGHT },
+  imageSlide: { width: imageWidth, height: imageHeight },
   mainProductImage: { width: '100%', height: '100%' },
   imageCounter: {
     position: 'absolute',
@@ -2048,7 +2191,7 @@ function createStyles(C: DetailPalette, isDark: boolean) {
     justifyContent: 'center',
   },
   gallerySlide: {
-    width,
+    width: screenWidth,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2297,7 +2440,7 @@ function createStyles(C: DetailPalette, isDark: boolean) {
     paddingBottom: 4,
   },
   reviewCard: {
-    width: REVIEW_CARD_WIDTH,
+    width: reviewCardWidth,
     minHeight: 168,
     borderRadius: 18,
     borderWidth: 1,
@@ -2383,15 +2526,15 @@ function createStyles(C: DetailPalette, isDark: boolean) {
     justifyContent: 'center',
   },
   reviewPhotoViewerSlide: {
-    width,
+    width: screenWidth,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
   reviewPhotoViewerImage: {
-    width: width - 24,
-    height: SCREEN_HEIGHT * 0.78,
+    width: screenWidth - 24,
+    height: screenHeight * 0.78,
   },
   emptyReviews: { fontSize: 12, color: C.muted, marginTop: 4 },
 

@@ -499,12 +499,22 @@ export default function CheckoutScreen() {
     setSuccessOrder(null);
   }, []);
 
-  const navigateAfterSuccess = useCallback(
-    (destination: Href) => {
+  const leaveCheckoutStack = useCallback(
+    (next?: Href) => {
       closeSuccessFlow();
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          InteractionManager.runAfterInteractions(() => router.navigate(destination));
+          InteractionManager.runAfterInteractions(() => {
+            if (router.canDismiss()) {
+              router.dismissTo('/(tabs)');
+            } else {
+              router.navigate('/(tabs)');
+            }
+            if (!next) return;
+            requestAnimationFrame(() => {
+              router.push(next);
+            });
+          });
         });
       });
     },
@@ -514,11 +524,14 @@ export default function CheckoutScreen() {
   const goToOrder = () => {
     if (!successOrder) return;
     const orderId = successOrder.id;
-    navigateAfterSuccess({ pathname: '/entrega', params: { orderId } });
+    leaveCheckoutStack({
+      pathname: '/entrega',
+      params: { orderId, fromPurchase: '1' },
+    });
   };
 
   const goHome = () => {
-    navigateAfterSuccess('/(tabs)');
+    leaveCheckoutStack();
   };
 
   const successCard = successOrder ? (
@@ -1192,7 +1205,7 @@ export default function CheckoutScreen() {
         </TouchableOpacity>
       </View>
 
-      <TornadoOverlay visible={showTornado} prewarm={submitting || showTornado}>
+      <TornadoOverlay visible={showTornado} prewarm>
         {!!successOrder && (
           <View style={styles.successOverlay} pointerEvents="box-none">
             {successCard}

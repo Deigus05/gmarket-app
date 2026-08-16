@@ -9,6 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "deploy:web": "node scripts/deploy-web-gh-pages.mjs",
+    "deploy:web:cf": "node scripts/deploy-web-cloudflare.mjs",
     "build:dev:android": "eas build --profile development --platform android",
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:preview:android": "eas build --profile preview --platform android",

@@ -39,7 +39,7 @@ function isUsableLanHost(host: string) {
   return true;
 }
 
-const PRODUCTION_API_URL = 'https://gmarket-backend-production.up.railway.app';
+const PRODUCTION_API_URL = 'https://gmarket-api-proxy.puzzling-apricot.workers.dev';
 
 function resolveApiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();

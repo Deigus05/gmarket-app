@@ -1,42 +1,41 @@
 // app/(tabs)/index.tsx
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useScrollToTop } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
-import { useScrollToTop } from '@react-navigation/native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    DeviceEventEmitter,
-    Dimensions,
-    FlatList,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    type ListRenderItemInfo,
+  DeviceEventEmitter,
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type ListRenderItemInfo,
 } from 'react-native';
 import Animated, {
-    Easing,
-    Extrapolation,
-    interpolate,
-    runOnJS,
-    useAnimatedProps,
-    useAnimatedScrollHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withTiming,
-    type SharedValue,
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -46,61 +45,64 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as typeof Fl
 /** Snap rápido entre fotos do card. */
 const CARD_GALLERY_DECEL = Platform.OS === 'ios' ? 0.99 : 0.9;
 
-import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
 import { invalidateApiCache } from '@/components/apiCache';
 import { HomeTicketStrip } from '@/components/eventos/HomeTicketStrip';
 import HomeDisintegrate from '@/components/home/HomeDisintegrate';
+import { DesktopBannerStrip } from '@/components/home/DesktopBannerStrip';
+import { HomeDesktopHeader } from '@/components/home/HomeDesktopHeader';
 import { HomeMagicLayer, useHomeMagic } from '@/components/home/HomeMagicLayer';
 import { useLocale } from '@/components/LocaleContext';
 import { PulsatingDots } from '@/components/PulsatingDots';
 import {
-    FavoriteCategories,
-    PopularProducts,
-    ProductRail,
-    RecommendedProducts,
-    RecommendedStores,
+  FavoriteCategories,
+  PopularProducts,
+  ProductRail,
+  RecommendedProducts,
+  RecommendedStores,
 } from '@/components/recommendations';
+import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
 import { useAppTheme, type HomePalette } from '@/components/tema';
+import { useBreakpoint, type BreakpointLayout } from '@/hooks/useBreakpoint';
 import {
-    AccountDataKey,
-    getAccountItem,
-    setAccountItem,
-    subscribeAccountScope,
+  AccountDataKey,
+  getAccountItem,
+  setAccountItem,
+  subscribeAccountScope,
 } from '@/lib/accountStorage';
 import { getCartJson, setCartJson } from '@/lib/cartStorage';
+import { connectChatSocket } from '@/lib/chatSocket';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
+import {
+  announceNewlyConfirmedTickets,
+  getLocalTickets,
+  mergeTicketsWithLocal,
+  syncLocalTicketsToServer,
+} from '@/lib/localTickets';
 import { parseCmsNavigationTarget } from '@/lib/navigation';
 import {
-    announceNewlyConfirmedTickets,
-    getLocalTickets,
-    mergeTicketsWithLocal,
-    syncLocalTicketsToServer,
-} from '@/lib/localTickets';
-import {
-    getFavoriteProductIds,
-    subscribeProductFavorites,
-    toFavProduct,
-    toggleProductFavorite,
+  getFavoriteProductIds,
+  subscribeProductFavorites,
+  toFavProduct,
+  toggleProductFavorite,
 } from '@/lib/productFavorites';
-import { connectChatSocket } from '@/lib/chatSocket';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import {
-    getHomeBanners,
-    getHomeRecommendations,
-    getLiveProducts,
-    getMyOrders,
-    getMyTickets,
-    getMyNotifications,
-    getSupportConversation,
-    syncCartToServer,
-    trackAppAccess,
-    trackEvent,
-    trackUserActivity,
-    type EventTicketDto,
-    type HomeBanner,
-    type HomeBannersGrouped,
-    type HomeRecommendations,
-    type SupportConversation,
+  getHomeBanners,
+  getHomeRecommendations,
+  getLiveProducts,
+  getMyNotifications,
+  getMyOrders,
+  getMyTickets,
+  getSupportConversation,
+  syncCartToServer,
+  trackAppAccess,
+  trackEvent,
+  trackUserActivity,
+  type EventTicketDto,
+  type HomeBanner,
+  type HomeBannersGrouped,
+  type HomeRecommendations,
+  type SupportConversation,
 } from '../../components/api';
 import { useAuth } from '../../components/AuthContext';
 import CatalogoModal from '../../components/CatalogoModal';
@@ -116,13 +118,6 @@ function supportUnreadFromConversation(data: SupportConversation) {
   return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
 }
 
-const { width } = Dimensions.get('window');
-/** Grade estilo Yandex/Market: quase de borda a borda, gap mínimo */
-const GRID_PAD = 4;
-const GRID_GAP = 4;
-const COLUMN_WIDTH = (width - GRID_PAD * 2 - GRID_GAP) / 2;
-const HERO_PAGE_WIDTH = width - 28;
-const FEED_PAGE_WIDTH = width - 24;
 const BANNER_AUTOPLAY_MS = 4500;
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400';
@@ -220,6 +215,8 @@ type BannerCarouselProps = {
   variant: 'hero' | 'feed';
   onPress: (banner: HomeBanner) => void;
   styles: HomeStyles;
+  pageWidth: number;
+  desktop?: boolean;
 };
 
 const BannerCarousel = memo(function BannerCarousel({
@@ -227,6 +224,8 @@ const BannerCarousel = memo(function BannerCarousel({
   variant,
   onPress,
   styles,
+  pageWidth,
+  desktop = false,
 }: BannerCarouselProps) {
   const { t } = useLocale();
   const scrollRef = useRef<ScrollView>(null);
@@ -234,7 +233,6 @@ const BannerCarousel = memo(function BannerCarousel({
   const directionRef = useRef(1);
   const touchingRef = useRef(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const pageWidth = variant === 'hero' ? HERO_PAGE_WIDTH : FEED_PAGE_WIDTH;
   const multi = banners.length > 1;
   const bannerIds = banners.map((banner) => banner.id).join(',');
 
@@ -302,27 +300,55 @@ const BannerCarousel = memo(function BannerCarousel({
           (variant === 'hero' ? (
             <TouchableOpacity
               key={item.id}
-              style={[styles.promoRow, { width: pageWidth }]}
+              style={[
+                styles.promoRow,
+                { width: pageWidth },
+                desktop && styles.promoRowDesktop,
+              ]}
               activeOpacity={0.9}
               onPress={() => onPress(item)}
             >
-              <View style={styles.promoTextCol}>
-                <Text style={styles.promoTitle} numberOfLines={2}>
-                  {item.title || t('home.bannerFallback')}
-                </Text>
-                {item.subtitle ? (
-                  <Text style={styles.promoSubtitle} numberOfLines={2}>
-                    {item.subtitle}
-                  </Text>
-                ) : null}
-              </View>
-              <Image
-                source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
-                style={styles.promoImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                recyclingKey={item.id}
-              />
+              {desktop ? (
+                <>
+                  <View style={styles.promoTextColDesktop}>
+                    <Text style={styles.promoTitleDesktop} numberOfLines={2}>
+                      {item.title || t('home.bannerFallback')}
+                    </Text>
+                    {item.subtitle ? (
+                      <Text style={styles.promoSubtitleDesktop} numberOfLines={2}>
+                        {item.subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Image
+                    source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
+                    style={styles.promoImageDesktop}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.id}
+                  />
+                </>
+              ) : (
+                <>
+                  <View style={styles.promoTextCol}>
+                    <Text style={styles.promoTitle} numberOfLines={2}>
+                      {item.title || t('home.bannerFallback')}
+                    </Text>
+                    {item.subtitle ? (
+                      <Text style={styles.promoSubtitle} numberOfLines={2}>
+                        {item.subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Image
+                    source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
+                    style={styles.promoImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.id}
+                  />
+                </>
+              )}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -395,9 +421,11 @@ const SKELETON_CARD_COUNT = 6;
 const HomeFeedSkeleton = memo(function HomeFeedSkeleton({
   styles,
   boneColor,
+  count = SKELETON_CARD_COUNT,
 }: {
   styles: HomeStyles;
   boneColor: string;
+  count?: number;
 }) {
   const pulse = useSharedValue(0.42);
 
@@ -413,7 +441,7 @@ const HomeFeedSkeleton = memo(function HomeFeedSkeleton({
 
   return (
     <View style={styles.productGrid}>
-      {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
+      {Array.from({ length: count }, (_, index) => (
         <View key={`skeleton-${index}`} style={styles.skeletonGridItem}>
           <Animated.View style={[styles.skeletonCard, pulseStyle]}>
             <View style={[styles.skeletonImage, { backgroundColor: boneColor }]} />
@@ -431,21 +459,23 @@ const FeedAdCard = memo(function FeedAdCard({
   banner,
   styles,
   onPress,
+  columnWidth,
 }: {
   banner: HomeBanner;
   styles: HomeStyles;
   onPress: (banner: HomeBanner) => void;
+  columnWidth: number;
 }) {
   return (
     <TouchableOpacity
-      style={styles.productCard}
+      style={[styles.productCard, { width: columnWidth }]}
       activeOpacity={0.85}
       onPress={() => onPress(banner)}
     >
-      <View style={styles.imageContainer}>
+      <View style={[styles.imageContainer, { width: columnWidth }]}>
         <Image
           source={{ uri: optimizedImageUrl(banner.image_url, 'card') }}
-          style={styles.productImage}
+          style={[styles.productImage, { width: columnWidth }]}
           contentFit="cover"
           cachePolicy="memory-disk"
           recyclingKey={banner.id}
@@ -518,6 +548,7 @@ const FeedProductCard = memo(function FeedProductCard({
   isFavorite,
   cartQty,
   styles,
+  columnWidth,
   onPress,
   onToggleFavorite,
   onAddToCart,
@@ -528,6 +559,7 @@ const FeedProductCard = memo(function FeedProductCard({
   isFavorite: boolean;
   cartQty: number;
   styles: HomeStyles;
+  columnWidth: number;
   onPress: (id: string) => void;
   onToggleFavorite: (product: ProductItemProps) => void;
   onAddToCart: (product: ProductItemProps) => void;
@@ -588,19 +620,19 @@ const FeedProductCard = memo(function FeedProductCard({
       if (Math.abs(velocityX) < 0.08) {
         runOnJS(handleDragEnd)();
       }
-      const next = Math.round(event.contentOffset.x / COLUMN_WIDTH);
+      const next = Math.round(event.contentOffset.x / columnWidth);
       runOnJS(syncActiveImage)(next);
     },
     onMomentumEnd: (event) => {
-      const next = Math.round(event.contentOffset.x / COLUMN_WIDTH);
+      const next = Math.round(event.contentOffset.x / columnWidth);
       runOnJS(syncActiveImage)(next);
       runOnJS(handleDragEnd)();
     },
   });
 
   return (
-    <View style={styles.productCard}>
-      <View style={styles.imageContainer}>
+    <View style={[styles.productCard, { width: columnWidth }]}>
+      <View style={[styles.imageContainer, { width: columnWidth }]}>
         {multi ? (
           <Animated.ScrollView
             ref={galleryRef}
@@ -616,20 +648,20 @@ const FeedProductCard = memo(function FeedProductCard({
             showsHorizontalScrollIndicator={false}
             decelerationRate={CARD_GALLERY_DECEL}
             scrollEventThrottle={16}
-            style={styles.productImagePager}
+            style={[styles.productImagePager, { width: columnWidth }]}
             onScroll={onGalleryScroll}
           >
             {images.map((uri, index) => (
               <Pressable
                 key={`${product.id}-img-${index}`}
-                style={styles.productImageSlide}
+                style={[styles.productImageSlide, { width: columnWidth }]}
                 onPress={openDetails}
                 accessibilityRole="button"
                 accessibilityLabel={product.titulo}
               >
                 <Image
                   source={{ uri }}
-                  style={styles.productImage}
+                  style={[styles.productImage, { width: columnWidth }]}
                   contentFit="cover"
                   transition={160}
                   cachePolicy="memory-disk"
@@ -640,14 +672,14 @@ const FeedProductCard = memo(function FeedProductCard({
           </Animated.ScrollView>
         ) : (
           <Pressable
-            style={styles.productImageSlide}
+            style={[styles.productImageSlide, { width: columnWidth }]}
             onPress={openDetails}
             accessibilityRole="button"
             accessibilityLabel={product.titulo}
           >
             <Image
               source={{ uri: images[0] }}
-              style={styles.productImage}
+              style={[styles.productImage, { width: columnWidth }]}
               contentFit="cover"
               transition={160}
               cachePolicy="memory-disk"
@@ -718,7 +750,7 @@ const FeedProductCard = memo(function FeedProductCard({
                   key={`dot-${index}`}
                   index={index}
                   scrollX={scrollX}
-                  pageWidth={COLUMN_WIDTH}
+                  pageWidth={columnWidth}
                   styles={styles}
                 />
               ))}
@@ -760,7 +792,11 @@ const FeedProductCard = memo(function FeedProductCard({
   );
 });
 
-function buildFeedItems(products: ProductItemProps[], gridAds: HomeBanner[]): FeedItem[] {
+function buildFeedItems(
+  products: ProductItemProps[],
+  gridAds: HomeBanner[],
+  adEvery = 4,
+): FeedItem[] {
   if (!gridAds.length) {
     return products.map((product) => ({
       kind: 'product' as const,
@@ -769,6 +805,7 @@ function buildFeedItems(products: ProductItemProps[], gridAds: HomeBanner[]): Fe
     }));
   }
 
+  const interval = Math.max(2, adEvery);
   const items: FeedItem[] = [];
   let adIndex = 0;
 
@@ -778,8 +815,7 @@ function buildFeedItems(products: ProductItemProps[], gridAds: HomeBanner[]): Fe
       key: `product-${product.id}`,
       product,
     });
-    // A cada 2 linhas (4 produtos), mistura 1 publicidade em coluna
-    if ((index + 1) % 4 === 0 && adIndex < gridAds.length) {
+    if ((index + 1) % interval === 0 && adIndex < gridAds.length) {
       const banner = gridAds[adIndex];
       adIndex += 1;
       items.push({
@@ -883,10 +919,15 @@ const EMPTY_RECOMMENDATIONS: HomeRecommendations = {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const layout = useBreakpoint();
   const { token, isLoggedIn, user } = useAuth();
-  const { colors, isDark } = useAppTheme();
+  const { colors, isDark, ui } = useAppTheme();
   const { t } = useLocale();
-  const styles = useMemo(() => createHomeStyles(colors, isDark), [colors, isDark]);
+  const styles = useMemo(
+    () => createHomeStyles(colors, isDark, layout),
+    [colors, isDark, layout],
+  );
+  const { isDesktop, feedColumns, columnWidth, heroPageWidth, feedPageWidth } = layout;
   const [homeFocused, setHomeFocused] = useState(true);
   const homeFocusedRef = useRef(true);
   const homeScopeGenerationRef = useRef(0);
@@ -1280,8 +1321,13 @@ export default function HomeScreen() {
   }, [token, isLoggedIn, user?.id]);
 
   const feedItems = useMemo(
-    () => buildFeedItems(products, banners.grid),
-    [products, banners.grid],
+    () => buildFeedItems(products, banners.grid, feedColumns * 2),
+    [products, banners.grid, feedColumns],
+  );
+
+  const cartCount = useMemo(
+    () => Object.values(cartQtyById).reduce((sum, qty) => sum + Math.max(0, qty), 0),
+    [cartQtyById],
   );
 
   const onBannerPress = useCallback(async (banner: HomeBanner) => {
@@ -1450,110 +1496,9 @@ export default function HomeScreen() {
     pointerEvents: (scrollY.value > ADDRESS_COLLAPSE - 6 ? 'auto' : 'none') as 'auto' | 'none',
   }));
 
-  const listHeader = useMemo(() => (
-    <View style={styles.headerBlock}>
-      {/* Hero opaco full-bleed: no pull desce COM o conteúdo, não o fundo atrás */}
-      <View style={styles.heroZone}>
-        <LinearGradient
-          colors={[colors.deep, colors.mid, colors.soft, colors.mist, colors.surface]}
-          locations={[0, 0.22, 0.48, 0.78, 1]}
-          start={{ x: 0.05, y: 0 }}
-          end={{ x: 0.95, y: 1 }}
-          style={[styles.heroGradient, { paddingTop: insets.top + 8 }]}
-        >
-          <TouchableOpacity
-            style={styles.addressRow}
-            onPress={() => setLocalizacaoVisivel(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="location-sharp" size={15} color={colors.accent} />
-            <Text style={styles.addressText} numberOfLines={1}>
-              {enderecoAtual || t('home.addAddress')}
-            </Text>
-            <Ionicons name="chevron-forward" size={15} color={colors.muted} />
-          </TouchableOpacity>
-
-          <SearchRow
-            colors={colors}
-            styles={styles}
-            onCatalog={() => setCatalogVisible(true)}
-            onNotifications={() => router.push('/notificacoes')}
-            onSearch={openSearch}
-            onChat={() => router.push('/chat')}
-            notificationsUnread={unreadNotifications}
-            chatUnread={chatUnread}
-          />
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoriesScroll}
-            contentContainerStyle={styles.categoriesContent}
-          >
-            {shortcuts.map((cat) => {
-              const showDeliveryBadge = cat.route === '/entrega' && activeDeliveries > 0;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={styles.categoryItem}
-                  activeOpacity={0.75}
-                  onPress={() => (cat.route ? router.push(cat.route as any) : null)}
-                >
-                  <View style={styles.categoryIcon}>
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={22}
-                      color={isDark ? '#111111' : colors.ink}
-                    />
-                    {showDeliveryBadge ? (
-                      <View style={styles.deliveryBadge}>
-                        <Text style={styles.deliveryBadgeText}>
-                          {activeDeliveries > 99 ? '99+' : String(activeDeliveries)}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.categoryName}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {banners.hero.length > 0 ? (
-            <BannerCarousel
-              banners={banners.hero}
-              variant="hero"
-              onPress={onBannerPress}
-              styles={styles}
-            />
-          ) : null}
-        </LinearGradient>
-      </View>
-
-      <HomeTicketStrip
-        tickets={myTickets}
-        loading={ticketsLoading && isLoggedIn}
-        isDark={isDark}
-        pendingLabel={t('events.ticketPending')}
-        pendingHint={t('events.ticketPendingHint')}
-        shareLabel={t('events.shareTicket')}
-        closeLabel={t('events.closeTicket')}
-      />
-
-      {banners.feed.length > 0 ? (
-        <View style={styles.feed}>
-          <BannerCarousel
-            banners={banners.feed}
-            variant="feed"
-            onPress={onBannerPress}
-            styles={styles}
-          />
-        </View>
-      ) : (
-        <View style={styles.feedSpacer} />
-      )}
-
-      <View style={styles.recommendationsWrap}>
+  const listHeader = useMemo(() => {
+    const recommendationsBlock = (
+      <View style={[styles.recommendationsWrap, isDesktop && styles.contentColumn]}>
         <FavoriteCategories categories={recommendations.favoriteCategories} />
         <RecommendedProducts products={recommendations.recommended} />
         {recommendations.becauseYouVisited.map((section) => (
@@ -1576,27 +1521,180 @@ export default function HomeScreen() {
         />
         <RecommendedStores stores={recommendations.recommendedStores} />
       </View>
-    </View>
-  ), [
+    );
+
+    if (isDesktop) {
+      const desktopBanners = [...banners.hero, ...banners.feed];
+      return (
+        <View style={[styles.headerBlock, styles.desktopPage]}>
+          <View style={styles.contentColumn}>
+            {desktopBanners.length > 0 ? (
+              <DesktopBannerStrip
+                banners={desktopBanners}
+                contentWidth={heroPageWidth}
+                onPress={onBannerPress}
+              />
+            ) : null}
+
+            <HomeTicketStrip
+              tickets={myTickets}
+              loading={ticketsLoading && isLoggedIn}
+              isDark={isDark}
+              pendingLabel={t('events.ticketPending')}
+              pendingHint={t('events.ticketPendingHint')}
+              shareLabel={t('events.shareTicket')}
+              closeLabel={t('events.closeTicket')}
+            />
+          </View>
+          {recommendationsBlock}
+          {products.length > 0 ? (
+            <View style={styles.contentColumn}>
+              <Text style={[styles.sectionHeading, styles.feedHeading, { color: ui.text }]}>
+                Explorar produtos
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.headerBlock}>
+        {/* Hero opaco full-bleed: no pull desce COM o conteúdo, não o fundo atrás */}
+        <View style={styles.heroZone}>
+          <LinearGradient
+            colors={
+              isDark
+                ? ['#0E0E0E', '#141414', '#1A1A1A', '#121212', '#0E0E0E']
+                : [colors.deep, colors.mid, colors.soft, colors.mist, colors.surface]
+            }
+            locations={[0, 0.22, 0.48, 0.78, 1]}
+            start={{ x: 0.05, y: 0 }}
+            end={{ x: 0.95, y: 1 }}
+            style={[styles.heroGradient, { paddingTop: insets.top + 8 }]}
+          >
+            <TouchableOpacity
+              style={styles.addressRow}
+              onPress={() => setLocalizacaoVisivel(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="location-sharp" size={15} color={colors.accent} />
+              <Text style={styles.addressText} numberOfLines={1}>
+                {enderecoAtual || t('home.addAddress')}
+              </Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.muted} />
+            </TouchableOpacity>
+
+            <SearchRow
+              colors={colors}
+              styles={styles}
+              onCatalog={() => setCatalogVisible(true)}
+              onNotifications={() => router.push('/notificacoes')}
+              onSearch={openSearch}
+              onChat={() => router.push('/chat')}
+              notificationsUnread={unreadNotifications}
+              chatUnread={chatUnread}
+            />
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.categoriesScroll}
+              contentContainerStyle={styles.categoriesContent}
+            >
+              {shortcuts.map((cat) => {
+                const showDeliveryBadge = cat.route === '/entrega' && activeDeliveries > 0;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={styles.categoryItem}
+                    activeOpacity={0.75}
+                    onPress={() => (cat.route ? router.push(cat.route as any) : null)}
+                  >
+                    <View style={styles.categoryIcon}>
+                      <Ionicons
+                        name={cat.icon as any}
+                        size={22}
+                        color={isDark ? '#111111' : colors.ink}
+                      />
+                      {showDeliveryBadge ? (
+                        <View style={styles.deliveryBadge}>
+                          <Text style={styles.deliveryBadgeText}>
+                            {activeDeliveries > 99 ? '99+' : String(activeDeliveries)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.categoryName}>{cat.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {banners.hero.length > 0 ? (
+              <BannerCarousel
+                banners={banners.hero}
+                variant="hero"
+                onPress={onBannerPress}
+                styles={styles}
+                pageWidth={heroPageWidth}
+              />
+            ) : null}
+          </LinearGradient>
+        </View>
+
+        <HomeTicketStrip
+          tickets={myTickets}
+          loading={ticketsLoading && isLoggedIn}
+          isDark={isDark}
+          pendingLabel={t('events.ticketPending')}
+          pendingHint={t('events.ticketPendingHint')}
+          shareLabel={t('events.shareTicket')}
+          closeLabel={t('events.closeTicket')}
+        />
+
+        {banners.feed.length > 0 ? (
+          <View style={styles.feed}>
+            <BannerCarousel
+              banners={banners.feed}
+              variant="feed"
+              onPress={onBannerPress}
+              styles={styles}
+              pageWidth={feedPageWidth}
+            />
+          </View>
+        ) : (
+          <View style={styles.feedSpacer} />
+        )}
+
+        {recommendationsBlock}
+      </View>
+    );
+  }, [
     activeDeliveries,
     banners.feed,
     banners.hero,
+    chatUnread,
     colors,
     enderecoAtual,
+    feedPageWidth,
+    heroPageWidth,
     insets.top,
     isDark,
+    isDesktop,
     isLoggedIn,
     myTickets,
     onBannerPress,
     openSearch,
+    products.length,
     recommendations,
     router,
     shortcuts,
     styles,
     t,
     ticketsLoading,
+    ui.text,
     unreadNotifications,
-    chatUnread,
   ]);
 
   const listHeaderWithError = useMemo(
@@ -1632,15 +1730,16 @@ export default function HomeScreen() {
 
   const renderFeedItem = useCallback(
     ({ item }: ListRenderItemInfo<FeedItem>) => (
-      <View style={styles.productGridItem}>
+      <View style={[styles.productGridItem, { width: columnWidth }]}>
         {item.kind === 'ad' ? (
-          <FeedAdCard banner={item.banner} styles={styles} onPress={onBannerPress} />
+          <FeedAdCard banner={item.banner} styles={styles} onPress={onBannerPress} columnWidth={columnWidth} />
         ) : (
           <FeedProductCard
             product={item.product}
             isFavorite={favoriteSet.has(item.product.id)}
             cartQty={cartQtyById[item.product.id] || 0}
             styles={styles}
+            columnWidth={columnWidth}
             onPress={openProduct}
             onToggleFavorite={toggleFavorite}
             onAddToCart={addToCartFromHome}
@@ -1653,6 +1752,7 @@ export default function HomeScreen() {
     [
       addToCartFromHome,
       cartQtyById,
+      columnWidth,
       favoriteSet,
       lockFeedScroll,
       onBannerPress,
@@ -1668,19 +1768,42 @@ export default function HomeScreen() {
   const listEmpty = useMemo(() => {
     if (homeLoading || homeError) {
       return (
-        <HomeFeedSkeleton styles={styles} boneColor={isDark ? colors.soft : colors.mist} />
+        <HomeFeedSkeleton
+          styles={styles}
+          boneColor={isDark ? colors.soft : colors.mist}
+          count={feedColumns * 2}
+        />
       );
     }
     return <Text style={styles.emptyText}>{t('home.emptyCloud')}</Text>;
-  }, [colors.mist, colors.soft, homeError, homeLoading, isDark, styles, t]);
+  }, [colors.mist, colors.soft, feedColumns, homeError, homeLoading, isDark, styles, t]);
 
   const showShards = magicRunning && !!shardUri;
 
   return (
     <View
-      style={[styles.mainWrapper, magicRunning && styles.mainWrapperMagic]}
+      style={[
+        styles.mainWrapper,
+        isDesktop && { backgroundColor: ui.bg },
+        magicRunning && styles.mainWrapperMagic,
+      ]}
       collapsable={false}
     >
+      {isDesktop ? (
+        <HomeDesktopHeader
+          addressLabel={enderecoAtual}
+          shortcuts={shortcuts}
+          notificationsUnread={unreadNotifications}
+          chatUnread={chatUnread}
+          cartCount={cartCount}
+          activeDeliveries={activeDeliveries}
+          onAddressPress={() => setLocalizacaoVisivel(true)}
+          onCatalog={() => setCatalogVisible(true)}
+          onSearch={openSearch}
+          onChat={() => router.push('/chat')}
+          onNotifications={() => router.push('/notificacoes')}
+        />
+      ) : null}
       {/* FlatList first in the native chain so NativeTabs can minimize on scroll. */}
       <ViewShot
         ref={homeShotRef}
@@ -1688,24 +1811,34 @@ export default function HomeScreen() {
         options={{ format: 'jpg', quality: 0.72 }}
       >
         <View
-          style={[styles.homeSuckLayer, showShards && styles.homeHidden]}
+          style={[
+            styles.homeSuckLayer,
+            isDesktop && { backgroundColor: ui.bg },
+            showShards && styles.homeHidden,
+          ]}
           pointerEvents={magicRunning ? 'none' : 'auto'}
           collapsable={false}
         >
           {/* FlatList 1.º na cadeia nativa: NativeTabs encontra o scroll no re-tap Início. */}
           <AnimatedFlatList
+            key={`feed-cols-${feedColumns}`}
             ref={homeScrollRef}
             data={feedItems}
             renderItem={renderFeedItem}
             keyExtractor={keyExtractor}
-            numColumns={2}
-            extraData={{ favorites, cartQtyById, chatUnread, unreadNotifications }}
+            numColumns={feedColumns}
+            extraData={{ favorites, cartQtyById, chatUnread, unreadNotifications, columnWidth }}
             style={[styles.list, magicRunning && styles.listMagic]}
             contentContainerStyle={[
               styles.listContent,
+              isDesktop && styles.listContentDesktop,
               magicRunning && styles.listContentMagic,
               // Espaço só o necessário para o último produto ficar acima da tab bar.
-              { paddingBottom: Math.max(insets.bottom, 12) + 56 },
+              {
+                paddingBottom: isDesktop
+                  ? 40
+                  : Math.max(insets.bottom, 12) + 56,
+              },
             ]}
             columnWrapperStyle={feedItems.length > 0 ? styles.columnWrapper : undefined}
             showsVerticalScrollIndicator={false}
@@ -1730,8 +1863,8 @@ export default function HomeScreen() {
             }
             ListHeaderComponent={listHeaderWithError}
             ListEmptyComponent={listEmpty}
-            initialNumToRender={8}
-            maxToRenderPerBatch={8}
+            initialNumToRender={isDesktop ? 15 : 8}
+            maxToRenderPerBatch={isDesktop ? 12 : 8}
             windowSize={7}
             removeClippedSubviews={false}
           />
@@ -1739,29 +1872,31 @@ export default function HomeScreen() {
             <View pointerEvents="none" style={styles.overscrollDeepFill} />
           ) : null}
 
-          {/* Barra fixa: categoria + busca + notificação */}
-          <Animated.View
-            style={[styles.stickyWrap, stickyStyle, magicRunning && styles.stickyHidden]}
-            animatedProps={stickyAnimatedProps}
-          >
-            <LinearGradient
-              colors={[colors.deep, colors.mid]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.stickyInner, { paddingTop: insets.top + 8 }]}
+          {/* Barra fixa mobile: categoria + busca + notificação */}
+          {!isDesktop ? (
+            <Animated.View
+              style={[styles.stickyWrap, stickyStyle, magicRunning && styles.stickyHidden]}
+              animatedProps={stickyAnimatedProps}
             >
-              <SearchRow
-                colors={colors}
-                styles={styles}
-                onCatalog={() => setCatalogVisible(true)}
-                onNotifications={() => router.push('/notificacoes')}
-                onSearch={openSearch}
-                onChat={() => router.push('/chat')}
-                notificationsUnread={unreadNotifications}
-                chatUnread={chatUnread}
-              />
-            </LinearGradient>
-          </Animated.View>
+              <LinearGradient
+                colors={isDark ? ['#0E0E0E', '#161616'] : [colors.deep, colors.mid]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.stickyInner, { paddingTop: insets.top + 8 }]}
+              >
+                <SearchRow
+                  colors={colors}
+                  styles={styles}
+                  onCatalog={() => setCatalogVisible(true)}
+                  onNotifications={() => router.push('/notificacoes')}
+                  onSearch={openSearch}
+                  onChat={() => router.push('/chat')}
+                  notificationsUnread={unreadNotifications}
+                  chatUnread={chatUnread}
+                />
+              </LinearGradient>
+            </Animated.View>
+          ) : null}
 
           {refreshing ? (
             <View
@@ -1822,12 +1957,21 @@ export default function HomeScreen() {
   );
 }
 
-function createHomeStyles(C: HomePalette, isDark: boolean) {
+function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLayout) {
+  const {
+    columnWidth,
+    feedPageWidth,
+    gridPad,
+    gridGap,
+    isDesktop,
+    contentMax,
+  } = layout;
+
   return StyleSheet.create({
     mainWrapper: {
       flex: 1,
       // surface atrás da tab bar → Liquid Glass não amostra o deep (fumaça)
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
     },
     mainWrapperMagic: {
       backgroundColor: '#000000',
@@ -1837,7 +1981,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       zIndex: 2,
       elevation: 2,
       overflow: 'visible',
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
     },
     homeHidden: {
       opacity: 0,
@@ -1863,18 +2007,51 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     },
     listContent: {
       paddingBottom: 24,
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
       flexGrow: 1,
+    },
+    listContentDesktop: {
+      backgroundColor: isDark ? '#0E0E0E' : '#F5F5F7',
+      alignItems: 'stretch',
     },
     listContentMagic: {
       backgroundColor: 'transparent',
     },
     columnWrapper: {
-      paddingHorizontal: GRID_PAD,
-      justifyContent: 'space-between',
+      paddingHorizontal: isDesktop ? Math.max(24, (layout.width - contentMax) / 2) + gridPad : gridPad,
+      maxWidth: isDesktop ? contentMax + Math.max(0, layout.width - contentMax) : undefined,
+      width: '100%',
+      alignSelf: 'center',
+      justifyContent: 'flex-start',
+      gap: gridGap,
     },
     headerBlock: {
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
+    },
+    desktopPage: {
+      backgroundColor: isDark ? '#0E0E0E' : '#F5F5F7',
+      paddingTop: 8,
+    },
+    contentColumn: {
+      width: '100%',
+      maxWidth: contentMax,
+      alignSelf: 'center',
+      paddingHorizontal: 16,
+    },
+    sectionHeading: {
+      fontSize: 15,
+      fontWeight: '800',
+      letterSpacing: -0.2,
+      marginBottom: 6,
+      marginTop: 2,
+    },
+    feedHeading: {
+      marginTop: 8,
+      marginBottom: 0,
+    },
+    feedDesktop: {
+      marginTop: 8,
+      marginBottom: 4,
     },
 
     refreshLoader: {
@@ -1891,7 +2068,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       left: 0,
       right: 0,
       zIndex: 1000,
-      backgroundColor: C.deep,
+      backgroundColor: isDark ? '#0E0E0E' : C.deep,
       shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
@@ -1908,7 +2085,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     },
 
     heroZone: {
-      backgroundColor: C.deep,
+      backgroundColor: isDark ? '#0E0E0E' : C.deep,
     },
     heroGradient: {
       paddingHorizontal: 14,
@@ -2042,9 +2219,27 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       justifyContent: 'space-between',
       paddingVertical: 4,
     },
+    promoRowDesktop: {
+      marginTop: 0,
+      height: 140,
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: '#FFFFFF',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: '#E5E7EB',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      gap: 16,
+    },
     promoTextCol: {
       flex: 1,
       paddingRight: 12,
+    },
+    promoTextColDesktop: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingRight: 8,
+      minWidth: 0,
     },
     promoTitle: {
       fontSize: 20,
@@ -2064,8 +2259,29 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       borderRadius: 16,
       backgroundColor: 'rgba(255,255,255,0.55)',
     },
+    promoImageDesktop: {
+      width: 160,
+      height: 112,
+      borderRadius: 10,
+      backgroundColor: '#EEF2F7',
+    },
+    promoTitleDesktop: {
+      color: C.ink,
+      fontSize: 22,
+      fontWeight: '800',
+      letterSpacing: -0.4,
+      lineHeight: 28,
+    },
+    promoSubtitleDesktop: {
+      marginTop: 6,
+      color: C.muted,
+      fontSize: 13,
+      fontWeight: '500',
+      lineHeight: 18,
+      maxWidth: '92%',
+    },
     heroCarouselWrap: {
-      marginTop: 14,
+      marginTop: isDesktop ? 0 : 14,
     },
     feedCarouselWrap: {
       marginBottom: 4,
@@ -2075,7 +2291,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       justifyContent: 'center',
       alignItems: 'center',
       gap: 6,
-      marginTop: 10,
+      marginTop: 8,
     },
     dot: {
       width: 6,
@@ -2089,23 +2305,23 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     },
 
     feed: {
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
       paddingHorizontal: 12,
       paddingTop: 4,
       paddingBottom: 8,
     },
     feedSpacer: {
       height: 8,
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
     },
     recommendationsWrap: {
-      backgroundColor: C.surface,
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
       paddingBottom: 8,
     },
     adCard: {
-      width: FEED_PAGE_WIDTH,
-      height: 178,
-      borderRadius: 18,
+      width: feedPageWidth,
+      height: isDesktop ? 132 : 178,
+      borderRadius: 12,
       overflow: 'hidden',
       marginBottom: 8,
       backgroundColor: '#E5E7EB',
@@ -2133,8 +2349,8 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     },
     adImage: {
       ...StyleSheet.absoluteFillObject,
-      width: FEED_PAGE_WIDTH,
-      height: 178,
+      width: feedPageWidth,
+      height: isDesktop ? 132 : 178,
       opacity: 1,
     },
     adOverlay: {
@@ -2180,36 +2396,42 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     productGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-between',
-      backgroundColor: C.surface,
-      rowGap: GRID_GAP,
+      justifyContent: 'flex-start',
+      backgroundColor: isDark ? '#0E0E0E' : C.surface,
+      rowGap: gridGap,
+      gap: gridGap,
+      paddingHorizontal: isDesktop ? Math.max(24, (layout.width - contentMax) / 2) + gridPad : gridPad,
     },
     productGridItem: {
-      width: COLUMN_WIDTH,
-      paddingBottom: GRID_GAP,
+      width: columnWidth,
+      paddingBottom: gridGap,
     },
     productCard: {
-      width: COLUMN_WIDTH,
-      backgroundColor: C.surface,
+      width: columnWidth,
+      backgroundColor: isDark ? '#1A1A1A' : C.surface,
+      borderRadius: isDesktop ? 14 : 0,
+      overflow: isDesktop ? 'hidden' : 'visible',
+      borderWidth: 0,
+      borderColor: 'transparent',
+      paddingBottom: isDesktop ? 8 : 0,
     },
     imageContainer: {
       position: 'relative',
-      width: COLUMN_WIDTH,
-      aspectRatio: 1 / 1.18,
-      borderRadius: 16,
+      width: columnWidth,
+      aspectRatio: isDesktop ? 1 / 1.05 : 1 / 1.18,
+      borderRadius: isDesktop ? 14 : 16,
       overflow: 'hidden',
       backgroundColor: C.mist,
+      alignSelf: 'center',
     },
     productImagePager: {
-      width: COLUMN_WIDTH,
+      width: '100%',
       height: '100%',
     },
     productImageSlide: {
-      width: COLUMN_WIDTH,
       height: '100%',
     },
     productImage: {
-      width: COLUMN_WIDTH,
       height: '100%',
     },
     cardImageDots: {
@@ -2245,20 +2467,20 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
     },
     heartButton: {
       position: 'absolute',
-      top: 8,
-      right: 8,
+      top: isDesktop ? 6 : 8,
+      right: isDesktop ? 6 : 8,
       backgroundColor: 'rgba(255,255,255,0.92)',
       borderRadius: 16,
-      padding: 7,
+      padding: isDesktop ? 5 : 7,
       zIndex: 2,
     },
     cartButton: {
       position: 'absolute',
-      right: 8,
-      bottom: 8,
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      right: isDesktop ? 6 : 8,
+      bottom: isDesktop ? 6 : 8,
+      width: isDesktop ? 34 : 42,
+      height: isDesktop ? 34 : 42,
+      borderRadius: isDesktop ? 17 : 21,
       overflow: 'visible',
       zIndex: 2,
       shadowColor: '#000',
@@ -2271,9 +2493,9 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       transform: [{ scale: 0.94 }],
     },
     cartButtonFill: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      width: isDesktop ? 34 : 42,
+      height: isDesktop ? 34 : 42,
+      borderRadius: isDesktop ? 17 : 21,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#FFFFFF',
@@ -2285,8 +2507,8 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       backgroundColor: '#E3F2FD',
     },
     cartLogo: {
-      width: 28,
-      height: 28,
+      width: isDesktop ? 22 : 28,
+      height: isDesktop ? 22 : 28,
     },
     cartBadge: {
       position: 'absolute',
@@ -2309,28 +2531,29 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       lineHeight: 12,
     },
     productTitle: {
-      fontSize: 13,
-      color: C.ink,
-      marginTop: 8,
-      paddingHorizontal: 2,
-      minHeight: 36,
-      lineHeight: 18,
+      fontSize: isDesktop ? 12 : 13,
+      color: isDark ? '#F2F2F2' : '#1C1C1E',
+      fontWeight: isDesktop ? '600' : '500',
+      marginTop: isDesktop ? 6 : 8,
+      paddingHorizontal: isDesktop ? 8 : 2,
+      minHeight: isDesktop ? 30 : 36,
+      lineHeight: isDesktop ? 15 : 18,
     },
     deliveryEta: {
-      fontSize: 11,
+      fontSize: isDesktop ? 10 : 11,
       fontWeight: '600',
       color: '#60A5FA',
       marginTop: 2,
-      paddingHorizontal: 2,
+      paddingHorizontal: isDesktop ? 8 : 2,
     },
     priceContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 4,
-      paddingHorizontal: 2,
+      marginTop: isDesktop ? 2 : 4,
+      paddingHorizontal: isDesktop ? 8 : 2,
     },
     normalPrice: {
-      fontSize: 17.28,
+      fontSize: isDesktop ? 14 : 15,
       fontWeight: '900',
       color: '#16A34A',
     },
@@ -2338,7 +2561,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       marginTop: 2,
-      paddingHorizontal: 2,
+      paddingHorizontal: isDesktop ? 8 : 2,
     },
     gcoinPrice: {
       fontSize: 11,
@@ -2366,8 +2589,8 @@ function createHomeStyles(C: HomePalette, isDark: boolean) {
       width: '100%',
     },
     skeletonGridItem: {
-      width: COLUMN_WIDTH,
-      marginBottom: GRID_GAP,
+      width: columnWidth,
+      marginBottom: gridGap,
     },
     skeletonCard: {
       width: '100%',

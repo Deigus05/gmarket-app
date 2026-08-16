@@ -472,8 +472,12 @@ export default function EntregaScreen() {
   const { ui, isDark, styles } = useEntregaTheme();
   const { t } = useLocale();
   const { token, isLoggedIn, loading: authLoading } = useAuth();
-  const params = useLocalSearchParams<{ orderId?: string }>();
+  const params = useLocalSearchParams<{ orderId?: string; fromPurchase?: string }>();
   const orderIdRaw = Array.isArray(params.orderId) ? params.orderId[0] : params.orderId;
+  const fromPurchaseRaw = Array.isArray(params.fromPurchase)
+    ? params.fromPurchase[0]
+    : params.fromPurchase;
+  const fromPurchase = fromPurchaseRaw === '1';
   // setParams pode deixar string vazia; tratar como "sem deep-link".
   const orderIdParam =
     typeof orderIdRaw === 'string' && orderIdRaw.trim().length > 0 ? orderIdRaw.trim() : undefined;
@@ -499,6 +503,8 @@ export default function EntregaScreen() {
   ordersRef.current = orders;
   const orderIdParamRef = useRef(orderIdParam);
   orderIdParamRef.current = orderIdParam;
+  const fromPurchaseRef = useRef(fromPurchase);
+  fromPurchaseRef.current = fromPurchase;
   const loadGenerationRef = useRef(0);
 
   const loadOrders = useCallback(async (
@@ -890,6 +896,10 @@ export default function EntregaScreen() {
 
   const goBack = useCallback(() => {
     if (dismissOrderDetail()) return;
+    if (fromPurchaseRef.current) {
+      router.replace('/(tabs)');
+      return;
+    }
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -901,13 +911,17 @@ export default function EntregaScreen() {
   // Não usar beforeRemove/preventDefault nem toggle de gestureEnabled (dessincroniza native-stack).
   useFocusEffect(
     useCallback(() => {
-      if (!selectedOrder) return undefined;
+      if (!selectedOrder && !fromPurchase) return undefined;
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        dismissOrderDetail();
-        return true;
+        if (dismissOrderDetail()) return true;
+        if (fromPurchaseRef.current) {
+          router.replace('/(tabs)');
+          return true;
+        }
+        return false;
       });
       return () => sub.remove();
-    }, [dismissOrderDetail, selectedOrder]),
+    }, [dismissOrderDetail, fromPurchase, router, selectedOrder]),
   );
 
   if (authLoading || loading) {

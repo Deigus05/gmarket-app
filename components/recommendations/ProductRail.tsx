@@ -2,24 +2,20 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { memo, useCallback, useMemo } from 'react';
 import {
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import type { Product } from '@/components/api';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { listImageUrl } from '@/lib/imageOptimization';
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400';
-
-const CARD_WIDTH = 132;
-const IMAGE_HEIGHT = 148;
-/** Altura fixa evita reflow/tremor quando o header da home re-renderiza */
-const CARD_HEIGHT = IMAGE_HEIGHT + 108;
 
 function formatDeliveryEta(deliveryTime?: string | null) {
   const value = deliveryTime?.trim();
@@ -95,7 +91,8 @@ export const ProductRail = memo(function ProductRail({
 }: ProductRailProps) {
   const router = useRouter();
   const { ui } = useAppTheme();
-  const styles = useMemo(() => createStyles(ui), [ui]);
+  const { isDesktop } = useBreakpoint();
+  const styles = useMemo(() => createStyles(ui, isDesktop), [ui, isDesktop]);
 
   const openProduct = useCallback(
     (id: string) => {
@@ -124,7 +121,6 @@ export const ProductRail = memo(function ProductRail({
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
-      {/* Altura explícita: no Android lista horizontal no header colapsa sem height */}
       <FlatList
         horizontal
         data={products}
@@ -145,39 +141,46 @@ export const ProductRail = memo(function ProductRail({
   );
 });
 
-function createStyles(ui: AppUI) {
+function createStyles(ui: AppUI, isDesktop: boolean) {
+  const cardWidth = isDesktop ? 118 : 132;
+  const imageHeight = isDesktop ? 118 : 148;
+  const cardHeight = imageHeight + (isDesktop ? 92 : 108);
+  const sidePad = isDesktop ? 0 : 12;
+
   return StyleSheet.create({
     section: {
       marginTop: 8,
       marginBottom: 10,
-      backgroundColor: ui.bg,
+      backgroundColor: isDesktop ? 'transparent' : ui.bg,
+      borderRadius: isDesktop ? 12 : 0,
+      paddingVertical: isDesktop ? 12 : 0,
     },
     header: {
-      paddingHorizontal: 12,
+      paddingHorizontal: sidePad,
       marginBottom: 10,
       gap: 2,
     },
     title: {
-      fontSize: 17,
+      fontSize: isDesktop ? 14 : 17,
       fontWeight: '800',
       color: ui.text,
-      letterSpacing: -0.3,
+      letterSpacing: -0.2,
     },
     subtitle: {
       fontSize: 12,
       color: ui.muted,
     },
     railScroll: {
-      height: CARD_HEIGHT,
+      height: cardHeight,
     },
     list: {
-      paddingHorizontal: 10,
-      gap: 8,
+      paddingHorizontal: isDesktop ? 0 : 10,
+      gap: isDesktop ? 12 : 8,
       alignItems: 'flex-start',
     },
     card: {
-      width: CARD_WIDTH,
-      height: CARD_HEIGHT,
+      width: cardWidth,
+      height: cardHeight,
       backgroundColor: ui.card,
       borderRadius: 12,
       padding: 8,
@@ -186,7 +189,7 @@ function createStyles(ui: AppUI) {
     },
     image: {
       width: '100%',
-      height: IMAGE_HEIGHT,
+      height: imageHeight,
       borderRadius: 8,
       backgroundColor: ui.input,
       marginBottom: 8,
@@ -232,7 +235,7 @@ function createStyles(ui: AppUI) {
       color: ui.brand,
     },
     empty: {
-      paddingHorizontal: 12,
+      paddingHorizontal: sidePad,
       fontSize: 12,
       color: ui.muted,
     },
