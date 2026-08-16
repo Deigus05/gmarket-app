@@ -1,4 +1,4 @@
-<!DOCTYPE html><html  lang="pt"><head><title data-rh="true"></title><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/><meta name="theme-color" content="#F5F5F7"/><style id="expo-reset">#root,body,html{height:100%}body{overflow:hidden}#root{display:flex}</style><style>
+<!DOCTYPE html><html  lang="pt"><head><title data-rh="true"></title><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/><meta name="theme-color" content="#F5F5F7"/><script>(function(){try{var d=window.matchMedia('(prefers-color-scheme: dark)').matches;var c=d?'#0E0E0E':'#F5F5F7';var t=d?'#F2F2F2':'#1C1C1E';document.documentElement.style.colorScheme=d?'dark':'light';document.documentElement.style.backgroundColor=c;document.documentElement.classList.add(d?'gm-dark':'gm-light');if(document.body){document.body.style.backgroundColor=c;document.body.style.color=t;}var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',c);}catch(e){}})();</script><style id="expo-reset">#root,body,html{height:100%}body{overflow:hidden}#root{display:flex}</style><style>
 html, body, #root {
   height: 100%;
 }
@@ -9,15 +9,46 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+/* Fundos claros típicos do SSR RN-web — forçar cinza no modo escuro do telemóvel. */
 @media (prefers-color-scheme: dark) {
-  body {
-    background-color: #0E0E0E;
-    color: #F2F2F2;
+  html, body, #root {
+    background-color: #0E0E0E !important;
+    color: #F2F2F2 !important;
+    color-scheme: dark;
   }
   meta[name="theme-color"] {
     content: #0E0E0E;
   }
-}</style><style id="react-native-stylesheet">[stylesheet-group="0"]{}
+  /* Sobrescreve fundos claros inline do SSR (RN-web) nos wrappers principais. */
+  #root div[style*="rgba(245,245,247"],
+  #root div[style*="rgb(245, 245, 247"],
+  #root div[style*="rgba(255,255,255"],
+  #root div[style*="rgb(255, 255, 255"],
+  #root div[style*="rgba(245,251,250"],
+  #root div[style*="rgba(234,247,244"],
+  #root div[style*="rgba(210,239,234"],
+  #root div[style*="rgba(184,228,222"] {
+    background-color: #0E0E0E !important;
+    background-image: none !important;
+  }
+}
+html.gm-dark, html.gm-dark body, html.gm-dark #root {
+  background-color: #0E0E0E !important;
+  color: #F2F2F2 !important;
+  color-scheme: dark;
+}
+html.gm-dark #root div[style*="rgba(245,245,247"],
+html.gm-dark #root div[style*="rgb(245, 245, 247"],
+html.gm-dark #root div[style*="rgba(255,255,255"],
+html.gm-dark #root div[style*="rgb(255, 255, 255"],
+html.gm-dark #root div[style*="rgba(245,251,250"],
+html.gm-dark #root div[style*="rgba(234,247,244"],
+html.gm-dark #root div[style*="rgba(210,239,234"],
+html.gm-dark #root div[style*="rgba(184,228,222"] {
+  background-color: #0E0E0E !important;
+  background-image: none !important;
+}
+</style><style id="react-native-stylesheet">[stylesheet-group="0"]{}
 body{margin:0;}
 button::-moz-focus-inner,input::-moz-focus-inner{border:0;padding:0;}
 html{-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:rgba(0,0,0,0);}
@@ -1064,5 +1095,5 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 @keyframes r-q67da2{0%{transform:translateX(-100%);}100%{transform:translateX(400%);}}
 @keyframes r-t2lo5v{0%{opacity:1;}100%{opacity:0;}}</style><style id="expo-generated-fonts">@font-face{font-family:"SpaceMono";src:url("/gmarket-app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf");font-display:auto}
 @font-face{font-family:"ionicons";src:url("/gmarket-app/assets/assets/fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf");font-display:auto}
-@font-face{font-family:"FontAwesome";src:url("/gmarket-app/assets/assets/fonts/FontAwesome.b06871f281fee6b241d60582ae9369b9.ttf");font-display:auto}</style><link rel="preload" href="/gmarket-app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf" as="font" crossorigin="" /><link rel="preload" href="/gmarket-app/assets/assets/fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf" as="font" crossorigin="" /><link rel="preload" href="/gmarket-app/assets/assets/fonts/FontAwesome.b06871f281fee6b241d60582ae9369b9.ttf" as="font" crossorigin="" /><script type="module">globalThis.__EXPO_ROUTER_HYDRATE__=true;</script><link rel="icon" href="/gmarket-app/favicon.ico" /></head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/gmarket-app/_expo/static/js/web/entry-50294ae5b33e9d0a215dfaff03aafee0.js" defer></script>
+@font-face{font-family:"FontAwesome";src:url("/gmarket-app/assets/assets/fonts/FontAwesome.b06871f281fee6b241d60582ae9369b9.ttf");font-display:auto}</style><link rel="preload" href="/gmarket-app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf" as="font" crossorigin="" /><link rel="preload" href="/gmarket-app/assets/assets/fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf" as="font" crossorigin="" /><link rel="preload" href="/gmarket-app/assets/assets/fonts/FontAwesome.b06871f281fee6b241d60582ae9369b9.ttf" as="font" crossorigin="" /><script type="module">globalThis.__EXPO_ROUTER_HYDRATE__=true;</script><link rel="icon" href="/gmarket-app/favicon.ico" /></head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/gmarket-app/_expo/static/js/web/entry-cf40be6cd3e39f58e43c3602c98c0040.js" defer></script>
 </body></html>
