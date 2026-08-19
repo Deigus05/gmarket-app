@@ -271,8 +271,10 @@ export function createVortex(
     uRadius: { value: 0.2 },
     uStrength: { value: 0 },
   };
-  const withRepel = <T extends THREE.Material>(material: T): T => {
-    material.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+  // Types from `three` may not be present in CI builds (devDependencies skipped).
+  // Keep this helper unblocked by loosening typing.
+  const withRepel = (material: any) => {
+    material.onBeforeCompile = (shader: any) => {
       shader.uniforms.uMouse = repelUniforms.uMouse;
       shader.uniforms.uAspect = repelUniforms.uAspect;
       shader.uniforms.uRadius = repelUniforms.uRadius;
