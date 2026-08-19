@@ -41,6 +41,10 @@ workflows:
         script: |
           set -euo pipefail
           npm ci || npm install
+      - name: Verify TypeScript
+        script: |
+          set -euo pipefail
+          npx tsc --noEmit --pretty false
       - name: Ensure production (no expo-dev-client)
         script: |
           set -euo pipefail
@@ -134,6 +138,10 @@ workflows:
         script: |
           set -euo pipefail
           npm ci || npm install
+      - name: Verify TypeScript
+        script: |
+          set -euo pipefail
+          npx tsc --noEmit --pretty false
       - name: Ensure production (no expo-dev-client)
         script: |
           set -euo pipefail
