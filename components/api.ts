@@ -73,7 +73,20 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    if (response.status >= 500) {
+      const path = String(input).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics('api_error', { source: path, metadata: { status: response.status } });
+      }).catch(() => undefined);
+    }
+    return response;
+  } catch (error) {
+    const path = String(input).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
+    void import('@/lib/analytics').then(({ trackAnalytics }) => {
+      trackAnalytics('network_error', { source: path });
+    }).catch(() => undefined);
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -187,6 +200,7 @@ export interface Product {
   image_urls?: string[] | null;
   descricao?: string | null;
   marca?: string | null;
+  search_tags?: string[] | null;
   garantia?: string | null;
   delivery_fee?: number | null;
   delivery_time?: string | null;
@@ -265,6 +279,15 @@ export async function trackEvent(tipo_evento: 'CLICOU_ANUNCIO' | 'VISUALIZOU_PRO
       body: JSON.stringify({ tipo_evento, item_id, item_nome }),
     });
     console.log('Clique em anúncio computado em Cloud!');
+    if (tipo_evento === 'CLICOU_ANUNCIO') {
+      void import('@/lib/analytics').then(({ trackAdClick }) => {
+        trackAdClick(item_id, item_nome);
+      }).catch(() => undefined);
+    } else if (tipo_evento === 'VISUALIZOU_PRODUTO') {
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics('product_view', { productId: item_id, source: 'legacy' });
+      }).catch(() => undefined);
+    }
   } catch (error) {
     console.log('Erro ao enviar tracking em background:', error);
   }
@@ -1927,6 +1950,42 @@ export async function markAllNotificationsRead(token: string): Promise<ApiResult
     return parseAuthResponse(response);
   } catch (error) {
     console.log('Erro ao marcar todas:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function deleteNotification(
+  token: string,
+  notificationId: string,
+): Promise<ApiResult<{ ok?: boolean }>> {
+  try {
+    const response = await apiFetch(
+      `${API_URL}/api/me/notifications/${encodeURIComponent(notificationId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return parseAuthResponse(response);
+  } catch (error) {
+    console.log('Erro ao eliminar notificação:', error);
+    return { success: false, message: 'Sem ligação ao servidor.' };
+  }
+}
+
+export async function deleteNotifications(
+  token: string,
+  ids: string[],
+): Promise<ApiResult<{ ok?: boolean }>> {
+  const unique = [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!unique.length) return { success: true, data: { ok: true } };
+  try {
+    const results = await Promise.all(unique.map((id) => deleteNotification(token, id)));
+    const failed = results.find((row) => !row.success);
+    if (failed) return failed;
+    return { success: true, data: { ok: true } };
+  } catch (error) {
+    console.log('Erro ao eliminar notificações:', error);
     return { success: false, message: 'Sem ligação ao servidor.' };
   }
 }

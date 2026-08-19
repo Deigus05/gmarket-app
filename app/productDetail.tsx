@@ -605,6 +605,16 @@ export default function ProductDetailScreen() {
 
     if (liveProduct && viewedRef.current !== targetId) {
       viewedRef.current = targetId;
+      const fromRaw = params.from;
+      const source = Array.isArray(fromRaw) ? fromRaw[0] : typeof fromRaw === 'string' ? fromRaw : 'direct';
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics('product_view', {
+          productId: targetId,
+          categoryId: liveProduct?.category?.id,
+          sellerId: liveProduct?.store_id || liveProduct?.store?.id,
+          source,
+        });
+      });
       void trackUserActivity(token, {
         action: 'view_product',
         productId: targetId,
@@ -658,6 +668,14 @@ export default function ProductDetailScreen() {
           productId: nextId,
           categoryId: liveProduct.category?.id,
           storeId: liveProduct.store_id || liveProduct.store?.id,
+        });
+        void import('@/lib/analytics').then(({ trackAnalytics }) => {
+          trackAnalytics('product_view', {
+            productId: nextId,
+            categoryId: liveProduct?.category?.id,
+            sellerId: liveProduct?.store_id || liveProduct?.store?.id,
+            source: 'related',
+          });
         });
       }
     }
@@ -766,6 +784,14 @@ export default function ProductDetailScreen() {
         categoryId: product.category?.id,
         storeId: product.store_id || product.store?.id,
       });
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics(removing ? 'product_unfavorite' : 'product_favorite', {
+          productId: product.id,
+          categoryId: product.category?.id,
+          sellerId: product.store_id || product.store?.id,
+          source: 'product',
+        });
+      });
     } catch (error) {
       console.log('Erro ao atualizar favorito:', error);
       setIsFavorite((prev) => !prev);
@@ -787,6 +813,14 @@ export default function ProductDetailScreen() {
         productId,
         categoryId: product.category?.id,
         storeId: product.store_id || product.store?.id,
+      });
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics('share', {
+          productId,
+          categoryId: product.category?.id,
+          sellerId: product.store_id || product.store?.id,
+          source: 'product',
+        });
       });
     } catch (error) {
       console.log('Erro ao partilhar produto:', error);
@@ -1083,6 +1117,14 @@ export default function ProductDetailScreen() {
         productId: product.id,
         categoryId: product.category?.id,
         storeId,
+      });
+      void import('@/lib/analytics').then(({ trackAnalytics }) => {
+        trackAnalytics('add_to_cart', {
+          productId: product.id,
+          categoryId: product.category?.id,
+          sellerId: storeId,
+          source: 'product',
+        });
       });
     }
 

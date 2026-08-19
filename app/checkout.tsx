@@ -50,6 +50,7 @@ import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import TornadoOverlay from '@/components/TornadoOverlay';
 import { useAppTheme } from '@/components/tema';
+import { trackAnalytics } from '@/lib/analytics';
 
 const DEFAULT_DELIVERY_FEE = 1500;
 
@@ -170,6 +171,7 @@ export default function CheckoutScreen() {
 
   useEffect(() => {
     mountedRef.current = true;
+    trackAnalytics('checkout_start', { source: 'checkout' });
     return () => {
       mountedRef.current = false;
     };

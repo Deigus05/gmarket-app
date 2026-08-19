@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gmarket.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "associatedDomains": [
         "applinks:www.gmbissau.com",
         "applinks:gmbissau.com"
@@ -42,7 +42,7 @@
     },
     "android": {
       "package": "com.gmarket.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/gmarket-adaptive-foreground.png",
         "backgroundColor": "#ffffff"

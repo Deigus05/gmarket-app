@@ -120,6 +120,9 @@ export default function EventoDetalheScreen() {
         }
         setLoading(false);
         loadedEventIdRef.current = id;
+        void import('@/lib/analytics').then(({ trackAnalytics }) => {
+          trackAnalytics('event_view', { eventId: id, source: 'event' });
+        });
       }
       void load();
       return () => {

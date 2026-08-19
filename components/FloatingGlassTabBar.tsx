@@ -50,6 +50,25 @@ const SPRING = { damping: 18, stiffness: 220, mass: 0.85 };
 const PILL_INSET = 4;
 const PILL_V_INSET = 8;
 const AVATAR_SIZE = 22;
+export const FLOATING_TAB_BAR_HEIGHT = 64;
+const TAB_BAR_MIN_BOTTOM_GAP = 10;
+
+/** Espaço para o último conteúdo da lista ficar acima da tab bar flutuante. */
+export function TabBarScrollSpacer({ extra = 16 }: { extra?: number }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  if (Platform.OS === 'web' && width >= 1024) {
+    return extra > 0 ? <View pointerEvents="none" style={{ height: extra }} /> : null;
+  }
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        height: FLOATING_TAB_BAR_HEIGHT + Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) + extra,
+      }}
+    />
+  );
+}
 
 const canUseLiquidGlass =
   Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
@@ -127,7 +146,7 @@ export function FloatingGlassTabBar({ state, descriptors, navigation }: BottomTa
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}
+      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) }]}
     >
       <View
         style={[
@@ -399,8 +418,8 @@ const styles = StyleSheet.create({
     pointerEvents: 'box-none',
   },
   shell: {
-    height: 64,
-    maxHeight: 64,
+    height: FLOATING_TAB_BAR_HEIGHT,
+    maxHeight: FLOATING_TAB_BAR_HEIGHT,
     borderRadius: 32,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth * 2,

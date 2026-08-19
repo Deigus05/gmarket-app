@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
+import { TabBarScrollSpacer } from '@/components/FloatingGlassTabBar';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { getLiveStores, getProductById, getStoreById, syncCartToServer, trackUserActivity } from '@/components/api';
 import { StoreAvatar } from '@/components/StoreAvatar';
@@ -624,12 +625,7 @@ export default function CartScreen() {
             ))}
           </ScrollView>
 
-          <View
-            style={[
-              styles.buyBarWrap,
-              { paddingBottom: Math.max(insets.bottom, 12) + 64 },
-            ]}
-          >
+          <View style={styles.buyBarWrap}>
             <CartBuyBar
               disabled={totalItensSelecionados === 0 || authLoading}
               onPress={() => {
@@ -641,6 +637,7 @@ export default function CartScreen() {
               amount={`${valorTotal.toLocaleString()} CFA`}
               buyLabel={t('cart.buy')}
             />
+            <TabBarScrollSpacer extra={8} />
           </View>
         </View>
       )}

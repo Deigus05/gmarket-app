@@ -10,18 +10,26 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
+import Swipeable, { SwipeDirection } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import {
   AppNotification,
+  deleteNotifications,
   getMyNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/components/api';
 import { useLocale } from '@/components/LocaleContext';
-import { isSupportNotification, resolveNotificationRoute } from '@/components/notifications';
+import {
+  hideNotificationIds,
+  isSupportNotification,
+  loadHiddenNotificationIds,
+  resolveNotificationRoute,
+} from '@/components/notifications';
 import { useAppTheme, type AppUI } from '@/components/tema';
 
 type FilterKey = 'all' | 'delivery' | 'stores' | 'promos' | 'tickets';
@@ -97,6 +105,90 @@ function filterLabel(
   }
 }
 
+type NotificationRowProps = {
+  item: AppNotification;
+  selecting: boolean;
+  selected: boolean;
+  styles: ReturnType<typeof createStyles>;
+  ui: AppUI;
+  accent: string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  onPress: () => void;
+  onDelete: () => void;
+};
+
+function NotificationRow({
+  item,
+  selecting,
+  selected,
+  styles,
+  ui,
+  accent,
+  t,
+  onPress,
+  onDelete,
+}: NotificationRowProps) {
+  const meta = typeMeta(item.type, accent, ui.brand, ui.muted, t);
+  const unread = !item.read_at;
+
+  const renderRightActions = () => (
+    <Pressable style={styles.swipeDelete} onPress={onDelete}>
+      <Ionicons name="trash-outline" size={22} color="#FFF" />
+      <Text style={styles.swipeDeleteText}>{t('notifications.delete')}</Text>
+    </Pressable>
+  );
+
+  const card = (
+    <TouchableOpacity
+      style={[styles.card, unread && styles.cardUnread, selected && styles.cardSelected]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      {selecting ? (
+        <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+          {selected ? <Ionicons name="checkmark" size={14} color="#FFF" /> : null}
+        </View>
+      ) : null}
+      <View style={[styles.typeIcon, { backgroundColor: `${meta.color}18` }]}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.thumb} contentFit="cover" />
+        ) : (
+          <Ionicons name={meta.icon} size={20} color={meta.color} />
+        )}
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.cardTop}>
+          <Text style={styles.typeLabel}>{meta.label}</Text>
+          <Text style={styles.when}>{formatWhen(item.created_at, t)}</Text>
+        </View>
+        <Text style={[styles.cardTitle, unread && styles.cardTitleUnread]} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.cardBodyText} numberOfLines={2}>
+          {item.body}
+        </Text>
+      </View>
+      {!selecting && unread ? <View style={styles.dot} /> : null}
+    </TouchableOpacity>
+  );
+
+  if (selecting) return card;
+
+  return (
+    <Swipeable
+      friction={2}
+      overshootRight={false}
+      rightThreshold={40}
+      renderRightActions={renderRightActions}
+      onSwipeableOpen={(direction) => {
+        if (direction === SwipeDirection.LEFT) onDelete();
+      }}
+    >
+      {card}
+    </Swipeable>
+  );
+}
+
 export default function NotificacoesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -109,6 +201,8 @@ export default function NotificacoesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [markingAll, setMarkingAll] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (silent = false) => {
     if (!token) {
@@ -117,9 +211,14 @@ export default function NotificacoesScreen() {
       return;
     }
     if (!silent) setLoading(true);
-    const result = await getMyNotifications(token);
+    const [result, hidden] = await Promise.all([
+      getMyNotifications(token),
+      loadHiddenNotificationIds(),
+    ]);
     if (result.success) {
-      setItems(result.data.filter((item) => !isSupportNotification(item)));
+      setItems(
+        result.data.filter((item) => !isSupportNotification(item) && !hidden.has(item.id)),
+      );
     }
     setLoading(false);
   }, [token]);
@@ -140,7 +239,40 @@ export default function NotificacoesScreen() {
     [items],
   );
 
+  const selectedCount = selectedIds.size;
+  const allVisibleSelected =
+    filtered.length > 0 && filtered.every((item) => selectedIds.has(item.id));
+
+  const exitSelection = useCallback(() => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const removeNotifications = useCallback(async (ids: string[]) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return;
+    const idSet = new Set(unique);
+    setItems((prev) => prev.filter((row) => !idSet.has(row.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      unique.forEach((id) => next.delete(id));
+      return next;
+    });
+    await hideNotificationIds(unique);
+    if (token) void deleteNotifications(token, unique);
+  }, [token]);
+
   const openNotification = async (item: AppNotification) => {
+    if (selecting) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(item.id)) next.delete(item.id);
+        else next.add(item.id);
+        return next;
+      });
+      return;
+    }
+
     if (token && !item.read_at) {
       setItems((prev) =>
         prev.map((row) =>
@@ -167,6 +299,29 @@ export default function NotificacoesScreen() {
       prev.map((row) => ({ ...row, read_at: row.read_at || new Date().toISOString() })),
     );
     setMarkingAll(false);
+  };
+
+  const handleSelectAll = () => {
+    const visibleIds = filtered.map((item) => item.id);
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      return;
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!selectedCount) return;
+    await removeNotifications([...selectedIds]);
+    exitSelection();
   };
 
   if (authLoading) {
@@ -214,25 +369,70 @@ export default function NotificacoesScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.85}>
-          <Ionicons name="arrow-back" size={20} color={ui.text} />
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            if (selecting) {
+              exitSelection();
+              return;
+            }
+            router.back();
+          }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name={selecting ? 'close' : 'arrow-back'} size={20} color={ui.text} />
         </TouchableOpacity>
         <View style={styles.titleWrap}>
           <Text style={styles.title}>{t('notifications.title')}</Text>
-          {unreadCount > 0 ? (
+          {selecting ? (
+            <Text style={styles.subtitle}>{t('notifications.selected', { n: selectedCount })}</Text>
+          ) : unreadCount > 0 ? (
             <Text style={styles.subtitle}>{t('notifications.unread', { n: unreadCount })}</Text>
           ) : (
             <Text style={styles.subtitle}>{t('notifications.upToDate')}</Text>
           )}
         </View>
-        <TouchableOpacity
-          style={[styles.markAllBtn, unreadCount === 0 && styles.markAllDisabled]}
-          onPress={handleMarkAll}
-          disabled={unreadCount === 0 || markingAll}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.markAllText}>{markingAll ? '…' : t('notifications.readAll')}</Text>
-        </TouchableOpacity>
+        {selecting ? (
+          <>
+            <TouchableOpacity
+              style={[styles.selectBtn, filtered.length === 0 && styles.markAllDisabled]}
+              onPress={handleSelectAll}
+              disabled={filtered.length === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.selectBtnText}>
+                {allVisibleSelected ? t('common.clear') : t('notifications.selectAll')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deleteBtn, selectedCount === 0 && styles.markAllDisabled]}
+              onPress={handleDeleteSelected}
+              disabled={selectedCount === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.deleteBtnText}>{t('notifications.delete')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.selectBtn, filtered.length === 0 && styles.markAllDisabled]}
+              onPress={() => setSelecting(true)}
+              disabled={filtered.length === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.selectBtnText}>{t('notifications.select')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.markAllBtn, unreadCount === 0 && styles.markAllDisabled]}
+              onPress={handleMarkAll}
+              disabled={unreadCount === 0 || markingAll}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.markAllText}>{markingAll ? '…' : t('notifications.readAll')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <View style={styles.filters}>
@@ -261,6 +461,7 @@ export default function NotificacoesScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
+          extraData={{ selecting, selectedCount, allVisibleSelected }}
           contentContainerStyle={[
             styles.list,
             filtered.length === 0 && styles.listEmpty,
@@ -286,38 +487,19 @@ export default function NotificacoesScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const meta = typeMeta(item.type, colors.accent, ui.brand, ui.muted, t);
-            const unread = !item.read_at;
-            return (
-              <TouchableOpacity
-                style={[styles.card, unread && styles.cardUnread]}
-                onPress={() => openNotification(item)}
-                activeOpacity={0.88}
-              >
-                <View style={[styles.typeIcon, { backgroundColor: `${meta.color}18` }]}>
-                  {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.thumb} contentFit="cover" />
-                  ) : (
-                    <Ionicons name={meta.icon} size={20} color={meta.color} />
-                  )}
-                </View>
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTop}>
-                    <Text style={styles.typeLabel}>{meta.label}</Text>
-                    <Text style={styles.when}>{formatWhen(item.created_at, t)}</Text>
-                  </View>
-                  <Text style={[styles.cardTitle, unread && styles.cardTitleUnread]} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.cardBodyText} numberOfLines={2}>
-                    {item.body}
-                  </Text>
-                </View>
-                {unread ? <View style={styles.dot} /> : null}
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={({ item }) => (
+            <NotificationRow
+              item={item}
+              selecting={selecting}
+              selected={selectedIds.has(item.id)}
+              styles={styles}
+              ui={ui}
+              accent={colors.accent}
+              t={t}
+              onPress={() => openNotification(item)}
+              onDelete={() => void removeNotifications([item.id])}
+            />
+          )}
         />
       )}
     </View>
@@ -357,6 +539,22 @@ function createStyles(ui: AppUI) {
     },
     markAllDisabled: { opacity: 0.45 },
     markAllText: { color: ui.brand, fontWeight: '700', fontSize: 12 },
+    selectBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: ui.card,
+      borderWidth: 1,
+      borderColor: ui.border,
+    },
+    selectBtnText: { color: ui.text, fontWeight: '700', fontSize: 12 },
+    deleteBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: ui.danger,
+    },
+    deleteBtnText: { color: '#FFF', fontWeight: '700', fontSize: 12 },
     filters: {
       flexDirection: 'row',
       gap: 8,
@@ -376,6 +574,17 @@ function createStyles(ui: AppUI) {
     chipTextActive: { color: '#FFF' },
     list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
     listEmpty: { flexGrow: 1, justifyContent: 'center' },
+    swipeDelete: {
+      flex: 1,
+      width: 88,
+      marginLeft: 10,
+      borderRadius: 16,
+      backgroundColor: ui.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    swipeDeleteText: { color: '#FFF', fontWeight: '700', fontSize: 11 },
     card: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -388,6 +597,23 @@ function createStyles(ui: AppUI) {
     },
     cardUnread: {
       backgroundColor: ui.brandSoft,
+      borderColor: ui.brand,
+    },
+    cardSelected: {
+      borderColor: ui.brand,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: ui.muted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
+    },
+    checkboxOn: {
+      backgroundColor: ui.brand,
       borderColor: ui.brand,
     },
     typeIcon: {

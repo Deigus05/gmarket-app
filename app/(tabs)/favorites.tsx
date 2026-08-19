@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
+import { TabBarScrollSpacer } from '@/components/FloatingGlassTabBar';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import {
   getFollowedStores,
@@ -81,7 +82,6 @@ export default function FavoritesScreen() {
   const { t } = useLocale();
   const { token, isLoggedIn } = useAuth();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const listBottomPad = Math.max(insets.bottom, 10) + 64 + 16;
   const isFocused = useIsFocused();
   const [activeSegment, setActiveTab] = useState<FavSegment>('produtos');
   const [favStores, setFavStores] = useState<FavStore[]>([]);
@@ -261,12 +261,13 @@ export default function FavoritesScreen() {
           columnWrapperStyle={{ gap: 12 }}
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{
-            padding: 16,
+            paddingHorizontal: 16,
             paddingTop: headerHeight + 16,
-            paddingBottom: listBottomPad,
+            paddingBottom: 16,
             gap: 12,
             flexGrow: favProducts.length === 0 ? 1 : undefined,
           }}
+          ListFooterComponent={<TabBarScrollSpacer extra={8} />}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -285,7 +286,7 @@ export default function FavoritesScreen() {
               <TouchableOpacity
                 style={styles.productFavCard}
                 activeOpacity={0.9}
-                onPress={() => router.push(`/productDetail?id=${encodeURIComponent(item.id)}`)}
+                onPress={() => router.push(`/productDetail?id=${encodeURIComponent(item.id)}&from=favorites`)}
               >
                 <View style={styles.productFavImgWrap}>
                   <Image
@@ -324,7 +325,12 @@ export default function FavoritesScreen() {
           data={favProperties}
           keyExtractor={(item) => item.id}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: listBottomPad }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: headerHeight + 16,
+            paddingBottom: 16,
+          }}
+          ListFooterComponent={<TabBarScrollSpacer extra={8} />}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -379,7 +385,12 @@ export default function FavoritesScreen() {
           data={favStores}
           keyExtractor={(item) => item.id}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ padding: 16, paddingTop: headerHeight + 16, paddingBottom: listBottomPad }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: headerHeight + 16,
+            paddingBottom: 16,
+          }}
+          ListFooterComponent={<TabBarScrollSpacer extra={8} />}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>

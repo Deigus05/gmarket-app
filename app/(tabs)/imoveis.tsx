@@ -16,6 +16,7 @@ import { getLiveProperties, Property } from '../../components/api';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { TabBarScrollSpacer } from '@/components/FloatingGlassTabBar';
 import { formatPropertyPrice, hotelStarCount, propertyPurposeBadge } from '../../constants/propertyDisplay';
 import { listImageUrl } from '@/lib/imageOptimization';
 import {
@@ -52,7 +53,6 @@ export default function ImoveisScreen() {
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const listBottomPad = Math.max(insets.bottom, 10) + 64 + 16;
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [favorites, setFavorites] = useState<Property[]>([]);
@@ -181,8 +181,9 @@ export default function ImoveisScreen() {
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
             styles.listContent,
-            { paddingTop: headerHeight + 14, paddingBottom: listBottomPad },
+            { paddingTop: headerHeight + 14 },
           ]}
+          ListFooterComponent={<TabBarScrollSpacer extra={8} />}
           refreshControl={
             <RefreshControl
               // refreshing=false: não mantém o spinner nativo.

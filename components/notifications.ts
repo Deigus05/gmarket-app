@@ -232,6 +232,33 @@ export async function saveSeenNotificationIds(ids: Set<string>) {
   await setAccountItem(AccountDataKey.seenNotifications, JSON.stringify(list));
 }
 
+export async function loadHiddenNotificationIds(): Promise<Set<string>> {
+  try {
+    const userId = await getActiveAccountId();
+    if (!userId) return new Set();
+    const raw = await getAccountItem(AccountDataKey.hiddenNotifications);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function hideNotificationIds(ids: string[]) {
+  const unique = [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!unique.length) return;
+  const hidden = await loadHiddenNotificationIds();
+  for (const id of unique) hidden.add(id);
+  const userId = await getActiveAccountId();
+  if (!userId) return;
+  await setAccountItem(
+    AccountDataKey.hiddenNotifications,
+    JSON.stringify([...hidden].slice(-500)),
+  );
+  await markNotificationsAnnounced(unique);
+}
+
 /**
  * Mostra no telemóvel alertas locais para notificações novas da inbox.
  * Enquanto o processo JS está vivo (app aberta ou em 2.º plano), anuncia
@@ -247,7 +274,8 @@ export async function announceNewInboxNotifications(
   const userId = await getActiveAccountId();
   if (!userId) return 0;
 
-  const unread = items.filter((item) => !item.read_at);
+  const hidden = await loadHiddenNotificationIds();
+  const unread = items.filter((item) => !item.read_at && !hidden.has(item.id));
   const seen = await loadSeenNotificationIds();
 
   // Seed inicial: histórico antigo — não spammar. Entrega fica de fora (sempre alertar).

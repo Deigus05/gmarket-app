@@ -1,6 +1,5 @@
 // app/(tabs)/index.tsx
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useScrollToTop } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -95,7 +94,6 @@ import {
   getMyTickets,
   getSupportConversation,
   syncCartToServer,
-  trackAppAccess,
   trackEvent,
   trackUserActivity,
   type EventTicketDto,
@@ -104,9 +102,11 @@ import {
   type HomeRecommendations,
   type SupportConversation,
 } from '../../components/api';
+import { trackAdImpressions } from '@/lib/analytics';
 import { useAuth } from '../../components/AuthContext';
 import CatalogoModal from '../../components/CatalogoModal';
 import LocalizacaoModal from '../../components/LocalizacaoModal';
+import { loadHiddenNotificationIds } from '../../components/notifications';
 
 function supportUnreadFromConversation(data: SupportConversation) {
   const raw =
@@ -1186,8 +1186,9 @@ export default function HomeScreen() {
     // Conta só a inbox — mensagens de suporte ficam no badge do chat.
     const result = await getMyNotifications(token, 50);
     if (result.success && isHomeScopeActive(generation)) {
+      const hidden = await loadHiddenNotificationIds();
       const count = result.data.filter(
-        (item) => !item.read_at && item.type !== 'support_message',
+        (item) => !item.read_at && item.type !== 'support_message' && !hidden.has(item.id),
       ).length;
       setUnreadNotifications(count);
     }
@@ -1214,23 +1215,6 @@ export default function HomeScreen() {
       setChatUnread(count);
     }
   }, [isHomeScopeActive, isLoggedIn, token]);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const stored = await AsyncStorage.getItem('@gmarket:presence_device_id');
-        const deviceId =
-          stored
-          || `gm-${Platform.OS}-home-${Date.now().toString(36)}`;
-        await trackAppAccess(
-          deviceId,
-          Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'Web',
-        );
-      } catch {
-        // analytics best-effort
-      }
-    })();
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -1330,6 +1314,13 @@ export default function HomeScreen() {
     [cartQtyById],
   );
 
+  useEffect(() => {
+    trackAdImpressions(
+      [...banners.hero, ...banners.feed, ...banners.grid],
+      'home',
+    );
+  }, [banners]);
+
   const onBannerPress = useCallback(async (banner: HomeBanner) => {
     trackEvent('CLICOU_ANUNCIO', banner.id, banner.title || 'Banner GMarket');
     const target = parseCmsNavigationTarget(banner.link_url || '');
@@ -1397,6 +1388,9 @@ export default function HomeScreen() {
           action: 'remove_cart',
           productId: product.id,
         });
+        void import('@/lib/analytics').then(({ trackAnalytics }) => {
+          trackAnalytics('remove_from_cart', { productId: product.id, source: 'home' });
+        });
         setCartQtyById((prev) => {
           const next = { ...prev };
           delete next[product.id];
@@ -1420,6 +1414,9 @@ export default function HomeScreen() {
           action: 'add_cart',
           productId: product.id,
         });
+        void import('@/lib/analytics').then(({ trackAnalytics }) => {
+          trackAnalytics('add_to_cart', { productId: product.id, source: 'home' });
+        });
         setCartQtyById((prev) => ({ ...prev, [product.id]: 1 }));
       }
 
@@ -1437,7 +1434,7 @@ export default function HomeScreen() {
   const openProduct = useCallback((id: string) => {
     if (!id) return;
     // Query string explícita — mais fiável no export estático / GitHub Pages.
-    router.push(`/productDetail?id=${encodeURIComponent(id)}`);
+    router.push(`/productDetail?id=${encodeURIComponent(id)}&from=home`);
   }, [router]);
 
   const scrollHandler = useAnimatedScrollHandler({

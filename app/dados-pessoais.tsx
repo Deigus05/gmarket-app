@@ -5,9 +5,12 @@ import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -30,9 +33,14 @@ export default function DadosPessoaisScreen() {
   const { ui } = useAppTheme();
   const { t } = useLocale();
   const styles = useMemo(() => createStyles(ui), [ui]);
-  const { user, isLoggedIn, updatePhoto, removePhoto, deleteAccount } = useAuth();
+  const { user, isLoggedIn, updatePhoto, removePhoto, deleteAccount, updateProfile } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [nome, setNome] = useState('');
+  const [apelido, setApelido] = useState('');
+  const [nameError, setNameError] = useState('');
   const accountDeletedRef = useRef(false);
 
   useEffect(() => {
@@ -41,6 +49,12 @@ export default function DadosPessoaisScreen() {
     }
   }, [isLoggedIn, router]);
 
+  useEffect(() => {
+    if (!user || editingName) return;
+    setNome(user.nome);
+    setApelido(user.apelido);
+  }, [user, editingName]);
+
   const fullName = user ? `${user.nome} ${user.apelido}`.trim() : '';
   const genderLabel =
     user?.genero === 'masculino'
@@ -48,6 +62,52 @@ export default function DadosPessoaisScreen() {
       : user?.genero === 'feminino'
         ? t('profile.female')
         : '—';
+
+  const startEditName = () => {
+    if (!user) return;
+    setNome(user.nome);
+    setApelido(user.apelido);
+    setNameError('');
+    setEditingName(true);
+  };
+
+  const cancelEditName = () => {
+    if (savingName) return;
+    setNome(user?.nome || '');
+    setApelido(user?.apelido || '');
+    setNameError('');
+    setEditingName(false);
+  };
+
+  const saveName = async () => {
+    const nextNome = nome.trim();
+    const nextApelido = apelido.trim();
+    if (!nextNome || !nextApelido) {
+      setNameError(t('register.errName'));
+      return;
+    }
+    if (nextNome === (user?.nome || '') && nextApelido === (user?.apelido || '')) {
+      setEditingName(false);
+      setNameError('');
+      return;
+    }
+
+    setSavingName(true);
+    setNameError('');
+    try {
+      const result = await updateProfile({ nome: nextNome, apelido: nextApelido });
+      if (!result.ok) {
+        setNameError(result.message || t('profile.nameUpdateFail'));
+        return;
+      }
+      setEditingName(false);
+      Alert.alert(t('profile.editName'), t('profile.nameUpdated'));
+    } catch {
+      setNameError(t('profile.nameUpdateFail'));
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -178,116 +238,186 @@ export default function DadosPessoaisScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.photoCard}>
-          <TouchableOpacity
-            style={styles.avatarWrap}
-            onPress={handlePhotoPress}
-            activeOpacity={0.85}
-            disabled={uploading}
-          >
-            {user.foto_url ? (
-              <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarText}>{getInitials(user.nome, user.apelido)}</Text>
-              </View>
-            )}
-            <View style={styles.cameraBadge}>
-              {uploading ? (
-                <RippleWaveLoader size="small" color="#FFF" />
-              ) : (
-                <Ionicons name="camera" size={16} color="#FFF" />
-              )}
-            </View>
-          </TouchableOpacity>
-
-          <Text style={styles.photoTitle}>
-            {user.foto_url ? t('profile.changePhoto') : t('profile.addPhoto')}
-          </Text>
-          <Text style={styles.photoHint}>{t('profile.photoHint')}</Text>
-          {user.foto_url ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
+        >
+          <View style={styles.photoCard}>
             <TouchableOpacity
-              style={styles.removePhotoBtn}
-              onPress={confirmRemovePhoto}
+              style={styles.avatarWrap}
+              onPress={handlePhotoPress}
               activeOpacity={0.85}
               disabled={uploading}
             >
-              <Ionicons name="trash-outline" size={16} color={ui.danger} />
-              <Text style={styles.removePhotoText}>{t('profile.removePhoto')}</Text>
+              {user.foto_url ? (
+                <Image source={{ uri: user.foto_url }} style={styles.avatarImage} contentFit="cover" />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>{getInitials(user.nome, user.apelido)}</Text>
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                {uploading ? (
+                  <RippleWaveLoader size="small" color="#FFF" />
+                ) : (
+                  <Ionicons name="camera" size={16} color="#FFF" />
+                )}
+              </View>
             </TouchableOpacity>
-          ) : null}
-        </View>
 
-        <Text style={styles.sectionLabel}>{t('profile.accountInfo')}</Text>
-        <View style={styles.infoCard}>
-          <InfoRow
-            styles={styles}
-            ui={ui}
-            icon="person-outline"
-            label={t('profile.fullName')}
-            value={fullName}
-          />
-          <View style={styles.divider} />
-          <InfoRow
-            styles={styles}
-            ui={ui}
-            icon="call-outline"
-            label={t('profile.phone')}
-            value={user.telefone}
-          />
-          <View style={styles.divider} />
-          <InfoRow
-            styles={styles}
-            ui={ui}
-            icon="male-female-outline"
-            label={t('profile.gender')}
-            value={genderLabel}
-          />
-          {user.endereco ? (
-            <>
-              <View style={styles.divider} />
+            <Text style={styles.photoTitle}>
+              {user.foto_url ? t('profile.changePhoto') : t('profile.addPhoto')}
+            </Text>
+            <Text style={styles.photoHint}>{t('profile.photoHint')}</Text>
+            {user.foto_url ? (
+              <TouchableOpacity
+                style={styles.removePhotoBtn}
+                onPress={confirmRemovePhoto}
+                activeOpacity={0.85}
+                disabled={uploading}
+              >
+                <Ionicons name="trash-outline" size={16} color={ui.danger} />
+                <Text style={styles.removePhotoText}>{t('profile.removePhoto')}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <Text style={styles.sectionLabel}>{t('profile.accountInfo')}</Text>
+          <View style={styles.infoCard}>
+            {editingName ? (
+              <View style={styles.editBlock}>
+                <Text style={styles.inputLabel}>{t('common.name')}</Text>
+                <View style={styles.inputRow}>
+                  <Ionicons name="person-outline" size={18} color={ui.muted} />
+                  <TextInput
+                    style={styles.input}
+                    value={nome}
+                    onChangeText={(value) => {
+                      setNome(value);
+                      if (nameError) setNameError('');
+                    }}
+                    placeholder={t('common.name')}
+                    placeholderTextColor={ui.muted}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    editable={!savingName}
+                  />
+                </View>
+                <Text style={styles.inputLabel}>{t('common.surname')}</Text>
+                <View style={styles.inputRow}>
+                  <Ionicons name="person-outline" size={18} color={ui.muted} />
+                  <TextInput
+                    style={styles.input}
+                    value={apelido}
+                    onChangeText={(value) => {
+                      setApelido(value);
+                      if (nameError) setNameError('');
+                    }}
+                    placeholder={t('common.surname')}
+                    placeholderTextColor={ui.muted}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    editable={!savingName}
+                  />
+                </View>
+                {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
+                <View style={styles.editActions}>
+                  <TouchableOpacity
+                    style={styles.editCancelBtn}
+                    onPress={cancelEditName}
+                    disabled={savingName}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.editCancelText}>{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editSaveBtn, savingName && styles.editSaveBtnDisabled]}
+                    onPress={() => void saveName()}
+                    disabled={savingName}
+                    activeOpacity={0.85}
+                  >
+                    {savingName ? (
+                      <RippleWaveLoader size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.editSaveText}>{t('common.save')}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
               <InfoRow
                 styles={styles}
                 ui={ui}
-                icon="location-outline"
-                label={t('profile.address')}
-                value={`${user.endereco.label}\n${user.endereco.details}`}
+                icon="person-outline"
+                label={t('profile.fullName')}
+                value={fullName}
+                actionLabel={t('common.edit')}
+                onPress={startEditName}
               />
-            </>
+            )}
+            <View style={styles.divider} />
+            <InfoRow
+              styles={styles}
+              ui={ui}
+              icon="call-outline"
+              label={t('profile.phone')}
+              value={user.telefone}
+            />
+            <View style={styles.divider} />
+            <InfoRow
+              styles={styles}
+              ui={ui}
+              icon="male-female-outline"
+              label={t('profile.gender')}
+              value={genderLabel}
+            />
+            {user.endereco ? (
+              <>
+                <View style={styles.divider} />
+                <InfoRow
+                  styles={styles}
+                  ui={ui}
+                  icon="location-outline"
+                  label={t('profile.address')}
+                  value={`${user.endereco.label}\n${user.endereco.details}`}
+                />
+              </>
+            ) : null}
+          </View>
+
+          {!user.endereco ? (
+            <TouchableOpacity
+              style={styles.addAddressBtn}
+              onPress={() => router.push('/adicionar-endereco')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={ui.brand} />
+              <Text style={styles.addAddressText}>{t('profile.addAddress')}</Text>
+            </TouchableOpacity>
           ) : null}
-        </View>
 
-        {!user.endereco ? (
           <TouchableOpacity
-            style={styles.addAddressBtn}
-            onPress={() => router.push('/adicionar-endereco')}
+            style={styles.deleteAccountBtn}
+            onPress={handleDeleteAccount}
             activeOpacity={0.85}
+            disabled={deleting || uploading || savingName}
           >
-            <Ionicons name="add-circle-outline" size={18} color={ui.brand} />
-            <Text style={styles.addAddressText}>{t('profile.addAddress')}</Text>
+            {deleting ? (
+              <RippleWaveLoader size="small" color={ui.danger} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color={ui.danger} />
+                <Text style={styles.deleteAccountText}>{t('profile.deleteAccount')}</Text>
+              </>
+            )}
           </TouchableOpacity>
-        ) : null}
-
-        <TouchableOpacity
-          style={styles.deleteAccountBtn}
-          onPress={handleDeleteAccount}
-          activeOpacity={0.85}
-          disabled={deleting || uploading}
-        >
-          {deleting ? (
-            <RippleWaveLoader size="small" color={ui.danger} />
-          ) : (
-            <>
-              <Ionicons name="trash-outline" size={18} color={ui.danger} />
-              <Text style={styles.deleteAccountText}>{t('profile.deleteAccount')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -298,15 +428,19 @@ function InfoRow({
   icon,
   label,
   value,
+  actionLabel,
+  onPress,
 }: {
   styles: ReturnType<typeof createStyles>;
   ui: AppUI;
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  actionLabel?: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.infoRow}>
+  const content = (
+    <>
       <View style={styles.iconBox}>
         <Ionicons name={icon} size={18} color={ui.brand} />
       </View>
@@ -314,8 +448,24 @@ function InfoRow({
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
       </View>
-    </View>
+      {onPress ? (
+        <View style={styles.rowAction}>
+          <Text style={styles.rowActionText}>{actionLabel}</Text>
+          <Ionicons name="pencil-outline" size={16} color={ui.brand} />
+        </View>
+      ) : null}
+    </>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.infoRow} onPress={onPress} activeOpacity={0.75}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.infoRow}>{content}</View>;
 }
 
 function createStyles(ui: AppUI) {
@@ -448,6 +598,71 @@ function createStyles(ui: AppUI) {
     infoText: { flex: 1 },
     infoLabel: { fontSize: 12, color: ui.muted, fontWeight: '600', marginBottom: 3 },
     infoValue: { fontSize: 15, color: ui.text, fontWeight: '600', lineHeight: 20 },
+    rowAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 8,
+    },
+    rowActionText: { fontSize: 13, fontWeight: '700', color: ui.brand },
+    editBlock: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
+    inputLabel: {
+      fontSize: 12,
+      color: ui.muted,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: ui.bg,
+      borderWidth: 1,
+      borderColor: ui.border,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      height: 50,
+      marginBottom: 12,
+    },
+    input: {
+      flex: 1,
+      fontSize: 15,
+      color: ui.text,
+      paddingVertical: 0,
+    },
+    errorText: {
+      color: ui.danger,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 10,
+      lineHeight: 18,
+    },
+    editActions: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    editCancelBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: ui.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editCancelText: { color: ui.text, fontSize: 14, fontWeight: '700' },
+    editSaveBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: 14,
+      backgroundColor: ui.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editSaveBtnDisabled: { opacity: 0.7 },
+    editSaveText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
     divider: { height: 1, backgroundColor: ui.divider, marginLeft: 62 },
     addAddressBtn: {
       marginTop: 14,

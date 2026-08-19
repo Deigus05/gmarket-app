@@ -15,6 +15,7 @@ import { AuthProvider } from '@/components/AuthContext';
 import { LocaleProvider } from '@/components/LocaleContext';
 import { NotificationBootstrap } from '@/components/NotificationBootstrap';
 import { PresenceBootstrap } from '@/components/PresenceBootstrap';
+import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap';
 import { PromoInterstitialBootstrap } from '@/components/PromoInterstitialBootstrap';
 import '@/components/notifications';
 import { ThemeProvider, useAppTheme } from '@/components/tema';
@@ -129,6 +130,7 @@ function RootLayoutNav({ introDone }: { introDone: boolean }) {
         <ThemeProvider>
           <NotificationBootstrap />
           <PresenceBootstrap />
+          <AnalyticsBootstrap />
           <PromoInterstitialBootstrap enabled={introDone} />
           <ThemedNavigation />
         </ThemeProvider>

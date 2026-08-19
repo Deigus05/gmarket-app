@@ -34,6 +34,7 @@ import {
 } from '@/components/api';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
+import { trackAdImpressions } from '@/lib/analytics';
 import {
   AccountDataKey,
   getAccountItem,
@@ -250,6 +251,7 @@ export default function SearchScreen() {
   const loadSearchBanners = useCallback(async () => {
     const banners = await getHomeBanners();
     setSearchBanners(banners.search || []);
+    trackAdImpressions(banners.search || [], 'search');
   }, []);
 
   useFocusEffect(
@@ -300,7 +302,7 @@ export default function SearchScreen() {
   }, []);
 
   const openProduct = useCallback((product: Product) => {
-    router.push(`/productDetail?id=${encodeURIComponent(product.id)}`);
+    router.push(`/productDetail?id=${encodeURIComponent(product.id)}&from=search`);
   }, [router]);
 
   const openStore = useCallback((store: LiveStore) => {

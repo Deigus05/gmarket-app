@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
+import { TabBarScrollSpacer } from '@/components/FloatingGlassTabBar';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import { registerForPushNotificationsAsync } from '@/components/notifications';
@@ -66,6 +67,7 @@ export default function ProfileScreen() {
         title: t('profile.myAccount'),
         items: [
           { id: 'm1', name: t('profile.personalData'), icon: 'person-outline', route: 'dados' },
+          { id: 'm1b', name: t('profile.myOrders'), icon: 'receipt-outline', route: 'pedidos' },
           { id: 'm2', name: t('profile.myListings'), icon: 'home-outline', route: 'anuncios' },
           {
             id: 'm3',
@@ -267,7 +269,7 @@ export default function ProfileScreen() {
             styles.guestOverlayContent,
             {
               paddingTop: Math.max(insets.top, 8) + 8,
-              paddingBottom: Math.max(insets.bottom, 8) + 24,
+              paddingBottom: 8,
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -317,6 +319,7 @@ export default function ProfileScreen() {
               <Text style={styles.guestVersion}>{t('profile.version')}</Text>
             </View>
           </View>
+          <TabBarScrollSpacer extra={8} />
         </ScrollView>
 
         <Image
@@ -333,8 +336,6 @@ export default function ProfileScreen() {
 
   const fullName = `${user.nome} ${user.apelido}`.trim();
   const genderLabel = user.genero === 'masculino' ? t('profile.male') : t('profile.female');
-
-  const tabBarClearance = Math.max(insets.bottom, 10) + 64;
 
   return (
     <View style={styles.mainWrapper}>
@@ -412,6 +413,8 @@ export default function ProfileScreen() {
                           router.push('/ajuda');
                         } else if (item.route === 'dados') {
                           router.push('/dados-pessoais');
+                        } else if (item.route === 'pedidos') {
+                          router.push('/entrega');
                         } else if (item.route === 'seguranca') {
                           router.push('/seguranca');
                         } else if (item.route === 'anuncios') {
@@ -465,7 +468,7 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.logoutFooter, { paddingBottom: tabBarClearance }]}>
+      <View style={styles.logoutFooter}>
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={handleLogout}
@@ -482,6 +485,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <Text style={styles.versionText}>{t('profile.version')}</Text>
+        <TabBarScrollSpacer extra={8} />
       </View>
     </View>
   );
