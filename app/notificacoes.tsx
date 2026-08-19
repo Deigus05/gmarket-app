@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,15 +27,16 @@ import {
 import { useLocale } from '@/components/LocaleContext';
 import {
   hideNotificationIds,
+  isSellerNotification,
   isSupportNotification,
   loadHiddenNotificationIds,
   resolveNotificationRoute,
 } from '@/components/notifications';
 import { useAppTheme, type AppUI } from '@/components/tema';
 
-type FilterKey = 'all' | 'delivery' | 'stores' | 'promos' | 'tickets';
+type FilterKey = 'all' | 'delivery' | 'stores' | 'promos' | 'tickets' | 'seller';
 
-const FILTER_KEYS: FilterKey[] = ['all', 'delivery', 'stores', 'promos', 'tickets'];
+const BASE_FILTER_KEYS: FilterKey[] = ['all', 'delivery', 'stores', 'promos', 'tickets'];
 
 function typeMeta(
   type: AppNotification['type'],
@@ -54,6 +56,22 @@ function typeMeta(
       return { icon: 'sparkles-outline' as const, color: '#7C3AED', label: t('notifications.typeGmarket') };
     case 'ticket_confirmed':
       return { icon: 'ticket-outline' as const, color: '#F5C518', label: t('notifications.typeTicket') };
+    case 'seller_order':
+      return { icon: 'receipt-outline' as const, color: brand, label: t('notifications.typeSellerOrder') };
+    case 'seller_follower':
+      return { icon: 'person-add-outline' as const, color: brand, label: t('notifications.typeSellerFollower') };
+    case 'seller_review':
+      return { icon: 'star-outline' as const, color: '#F5C518', label: t('notifications.typeSellerReview') };
+    case 'seller_return':
+      return { icon: 'return-down-back-outline' as const, color: accent, label: t('notifications.typeSellerReturn') };
+    case 'seller_payout':
+      return { icon: 'cash-outline' as const, color: '#2E7D32', label: t('notifications.typeSellerPayout') };
+    case 'seller_application':
+      return { icon: 'storefront-outline' as const, color: brand, label: t('notifications.typeSellerApplication') };
+    case 'seller_ad':
+      return { icon: 'easel-outline' as const, color: '#EA580C', label: t('notifications.typeSellerAd') };
+    case 'seller_stock':
+      return { icon: 'alert-circle-outline' as const, color: '#EA580C', label: t('notifications.typeSellerStock') };
     default:
       return { icon: 'notifications-outline' as const, color: muted, label: t('notifications.typeAlert') };
   }
@@ -84,6 +102,7 @@ function matchesFilter(item: AppNotification, filter: FilterKey) {
   if (filter === 'delivery') return item.type === 'delivery_status';
   if (filter === 'stores') return item.type === 'new_product' || item.type === 'store_promo';
   if (filter === 'tickets') return item.type === 'ticket_confirmed';
+  if (filter === 'seller') return isSellerNotification(item);
   return item.type === 'gmarket_promo' || item.type === 'store_promo';
 }
 
@@ -102,6 +121,8 @@ function filterLabel(
       return t('notifications.filterPromos');
     case 'tickets':
       return t('notifications.filterTickets');
+    case 'seller':
+      return t('notifications.filterSeller');
   }
 }
 
@@ -233,6 +254,17 @@ export default function NotificacoesScreen() {
     () => items.filter((item) => matchesFilter(item, filter)),
     [items, filter],
   );
+
+  const filterKeys = useMemo<FilterKey[]>(() => {
+    if (items.some((item) => isSellerNotification(item))) {
+      return ['all', 'delivery', 'seller', 'stores', 'promos', 'tickets'];
+    }
+    return BASE_FILTER_KEYS;
+  }, [items]);
+
+  useEffect(() => {
+    if (filter === 'seller' && !filterKeys.includes('seller')) setFilter('all');
+  }, [filter, filterKeys]);
 
   const unreadCount = useMemo(
     () => items.filter((item) => !item.read_at).length,
@@ -435,8 +467,12 @@ export default function NotificacoesScreen() {
         )}
       </View>
 
-      <View style={styles.filters}>
-        {FILTER_KEYS.map((key) => {
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filters}
+      >
+        {filterKeys.map((key) => {
           const active = filter === key;
           return (
             <TouchableOpacity
@@ -451,7 +487,7 @@ export default function NotificacoesScreen() {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {loading ? (
         <View style={styles.centered}>
@@ -560,6 +596,7 @@ function createStyles(ui: AppUI) {
       gap: 8,
       paddingHorizontal: 16,
       marginBottom: 8,
+      paddingBottom: 8,
     },
     chip: {
       paddingHorizontal: 14,

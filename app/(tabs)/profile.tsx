@@ -22,6 +22,7 @@ import { useLocale } from '@/components/LocaleContext';
 import { registerForPushNotificationsAsync } from '@/components/notifications';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { compressImageForUpload } from '@/lib/imageOptimization';
+import { resolveSellerMe } from '@/lib/seller/snapshot';
 import { openSupportWhatsApp } from '@/lib/support';
 
 const PUSH_PREF_KEY = '@gmarket:push_notifications';
@@ -59,6 +60,8 @@ export default function ProfileScreen() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [updatingPhoto, setUpdatingPhoto] = useState(false);
+  const [storeApproved, setStoreApproved] = useState(false);
+  const [supplierActive, setSupplierActive] = useState(false);
   const guestBg = isDark ? GUEST_BG_DARK : GUEST_BG_LIGHT;
 
   const menuSections: MenuSection[] = useMemo(
@@ -76,6 +79,9 @@ export default function ProfileScreen() {
             badge: t('common.available'),
             route: 'carteira',
           },
+          ...(storeApproved
+            ? [{ id: 'm3s', name: t('profile.myStore'), icon: 'storefront-outline', route: 'minha-loja' }]
+            : []),
         ],
       },
       {
@@ -87,6 +93,16 @@ export default function ProfileScreen() {
             icon: 'rocket-outline',
             route: 'parceria',
           },
+          ...(!storeApproved && supplierActive
+            ? [
+                {
+                  id: 'm3c',
+                  name: t('profile.supplierRequest'),
+                  icon: 'cube-outline',
+                  route: 'fornecer',
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -112,7 +128,7 @@ export default function ProfileScreen() {
         ],
       },
     ],
-    [t],
+    [t, storeApproved, supplierActive],
   );
 
   useFocusEffect(
@@ -123,10 +139,25 @@ export default function ProfileScreen() {
         if (value === null) setPushNotifications(true);
         else setPushNotifications(value === '1');
       });
+      if (token) {
+        resolveSellerMe(token).then((me) => {
+          if (!active) return;
+          setStoreApproved(me.storeApplication.status === 'approved' || Boolean(me.store));
+          setSupplierActive(
+            me.supplier.status === 'submitted'
+              || me.supplier.status === 'under_review'
+              || me.supplier.status === 'needs_changes'
+              || me.supplier.status === 'accepted',
+          );
+        });
+      } else {
+        setStoreApproved(false);
+        setSupplierActive(false);
+      }
       return () => {
         active = false;
       };
-    }, []),
+    }, [token]),
   );
 
   const handlePushToggle = async (enabled: boolean) => {
@@ -341,7 +372,7 @@ export default function ProfileScreen() {
     <View style={styles.mainWrapper}>
       <ScrollView
         style={{ flex: 1, paddingTop: Math.max(insets.top, 12) + 12 }}
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{ flexGrow: 1 }}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
@@ -429,6 +460,10 @@ export default function ProfileScreen() {
                           router.push('/idioma');
                         } else if (item.route === 'parceria') {
                           router.push('/parceria');
+                        } else if (item.route === 'minha-loja') {
+                          router.push('/minha-loja');
+                        } else if (item.route === 'fornecer') {
+                          router.push('/fornecer');
                         }
                       }}
                     >
@@ -466,27 +501,27 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+
+        <View style={[styles.logoutFooter, { marginTop: 'auto' }]}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            disabled={loggingOut}
+          >
+            {loggingOut ? (
+              <RippleWaveLoader size="small" color={ui.danger} />
+            ) : (
+              <>
+                <Ionicons name="log-out-outline" size={18} color={ui.danger} />
+                <Text style={styles.logoutText}>{t('profile.logout')}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.versionText}>{t('profile.version')}</Text>
+        </View>
+        <TabBarScrollSpacer extra={16} />
       </ScrollView>
-
-      <View style={styles.logoutFooter}>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          disabled={loggingOut}
-        >
-          {loggingOut ? (
-            <RippleWaveLoader size="small" color={ui.danger} />
-          ) : (
-            <>
-              <Ionicons name="log-out-outline" size={18} color={ui.danger} />
-              <Text style={styles.logoutText}>{t('profile.logout')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <Text style={styles.versionText}>{t('profile.version')}</Text>
-        <TabBarScrollSpacer extra={8} />
-      </View>
     </View>
   );
 }

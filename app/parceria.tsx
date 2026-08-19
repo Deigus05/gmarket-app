@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,8 +25,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/components/AuthContext';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme } from '@/components/tema';
+import { resolveSellerMe } from '@/lib/seller/snapshot';
 import { openSupportWhatsApp } from '@/lib/support';
 
 type OpportunityId = 'seller' | 'affiliate' | 'courier' | 'ads';
@@ -142,9 +144,13 @@ function BornFromBlock({
   bottomInset,
   onClosed,
   onInterest,
+  sellerMode,
+  storeApproved,
+  onSupply,
+  onOpenStore,
 }: {
   item: Opportunity;
-  copy: { title: string; subtitle: string; body: string; cta: string };
+  copy: { title: string; subtitle: string; body: string; cta: string; ctaSupply?: string; ctaStore?: string };
   chips: string[];
   origin: OriginRect;
   borderColor: string;
@@ -154,11 +160,15 @@ function BornFromBlock({
   bottomInset: number;
   onClosed: () => void;
   onInterest: () => void;
+  sellerMode?: boolean;
+  storeApproved?: boolean;
+  onSupply?: () => void;
+  onOpenStore?: () => void;
 }) {
   const progress = useSharedValue(0);
 
   const targetY = Math.max(topInset + 52, Math.min(origin.y, SCREEN_H * 0.16));
-  const targetH = Math.min(420, SCREEN_H - targetY - bottomInset - 28);
+  const targetH = Math.min(sellerMode ? 560 : 420, SCREEN_H - targetY - bottomInset - 28);
 
   React.useEffect(() => {
     progress.value = withSpring(1, SPRING);
@@ -233,10 +243,11 @@ function BornFromBlock({
           </View>
         </Animated.View>
 
-        <Animated.View style={[styles.bornDetail, detailStyle]}>
+        <Animated.View style={[styles.bornDetail, detailStyle, { flex: 1 }]}>
           <Pressable style={styles.closeBtn} onPress={close} hitSlop={10}>
             <Ionicons name="close" size={16} color={text} />
           </Pressable>
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} nestedScrollEnabled>
 
           <View style={[styles.bornIcon, { backgroundColor: item.soft }]}>
             <Ionicons name={item.icon} size={28} color={item.accent} />
@@ -258,16 +269,58 @@ function BornFromBlock({
             ))}
           </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.cta,
-              { backgroundColor: item.accent, opacity: pressed ? 0.9 : 1 },
-            ]}
-            onPress={onInterest}
-          >
-            <Text style={styles.ctaText}>{copy.cta}</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFF" />
-          </Pressable>
+          {sellerMode ? (
+            <>
+              {storeApproved ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.cta,
+                    { backgroundColor: item.accent, opacity: pressed ? 0.9 : 1 },
+                  ]}
+                  onPress={onOpenStore}
+                >
+                  <Text style={styles.ctaText}>{copy.ctaStore || copy.cta}</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.cta,
+                      { backgroundColor: item.accent, opacity: pressed ? 0.9 : 1 },
+                    ]}
+                    onPress={onSupply}
+                  >
+                    <Text style={styles.ctaText}>{copy.ctaSupply || copy.cta}</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.cta,
+                      styles.ctaSecondary,
+                      { borderColor: item.accent, opacity: pressed ? 0.9 : 1 },
+                    ]}
+                    onPress={onOpenStore}
+                  >
+                    <Text style={[styles.ctaText, { color: item.accent }]}>{copy.ctaStore || copy.cta}</Text>
+                    <Ionicons name="storefront-outline" size={16} color={item.accent} />
+                  </Pressable>
+                </>
+              )}
+            </>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [
+                styles.cta,
+                { backgroundColor: item.accent, opacity: pressed ? 0.9 : 1 },
+              ]}
+              onPress={onInterest}
+            >
+              <Text style={styles.ctaText}>{copy.cta}</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFF" />
+            </Pressable>
+          )}
+          </ScrollView>
         </Animated.View>
       </Animated.View>
     </View>
@@ -279,8 +332,10 @@ export default function ParceriaScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { ui, isDark } = useAppTheme();
+  const { isLoggedIn, token } = useAuth();
   const [activeId, setActiveId] = useState<OpportunityId | null>(null);
   const [origin, setOrigin] = useState<OriginRect | null>(null);
+  const [storeApproved, setStoreApproved] = useState(false);
 
   const pageBg = isDark ? ui.bg : '#EDEEF1';
   const borderColor = isDark ? '#FFFFFF' : '#000000';
@@ -332,6 +387,8 @@ export default function ParceriaScreen() {
           subtitle: t('partnership.sellerSubtitle'),
           body: t('partnership.sellerBody'),
           cta: t('partnership.sellerCta'),
+          ctaSupply: t('partnership.sellerCtaSupply'),
+          ctaStore: t('partnership.sellerCtaStore'),
           wa: t('partnership.sellerWa'),
           chips: [
             t('partnership.sellerChipStore'),
@@ -384,8 +441,28 @@ export default function ParceriaScreen() {
     [t],
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!token) {
+        setStoreApproved(false);
+        return () => {
+          active = false;
+        };
+      }
+      resolveSellerMe(token).then((me) => {
+        if (!active) return;
+        setStoreApproved(me.storeApplication.status === 'approved' || Boolean(me.store));
+      });
+      return () => {
+        active = false;
+      };
+    }, [token]),
+  );
+
   const onInterest = useCallback(
     async (id: OpportunityId) => {
+      if (id === 'seller') return;
       const { wa } = copyFor(id);
       const ok = await openSupportWhatsApp(wa);
       if (!ok) {
@@ -405,6 +482,18 @@ export default function ParceriaScreen() {
     setActiveId(null);
     setOrigin(null);
   }, []);
+
+  const goAuthed = useCallback(
+    (path: '/fornecer' | '/abrir-loja' | '/minha-loja') => {
+      closeFocus();
+      if (!isLoggedIn) {
+        router.push({ pathname: '/login', params: { redirect: path } });
+        return;
+      }
+      router.push(path);
+    },
+    [closeFocus, isLoggedIn, router],
+  );
 
   const active = activeId ? opportunities.find((o) => o.id === activeId) : null;
   const activeCopy = activeId ? copyFor(activeId) : null;
@@ -495,6 +584,10 @@ export default function ParceriaScreen() {
           bottomInset={insets.bottom}
           onClosed={closeFocus}
           onInterest={() => onInterest(active.id)}
+          sellerMode={active.id === 'seller'}
+          storeApproved={storeApproved}
+          onSupply={() => goAuthed('/fornecer')}
+          onOpenStore={() => goAuthed(storeApproved ? '/minha-loja' : '/abrir-loja')}
         />
       )}
     </View>
@@ -671,6 +764,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  ctaSecondary: {
+    marginTop: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
   },
   ctaText: {
     color: '#FFF',

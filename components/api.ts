@@ -1779,7 +1779,15 @@ export type AppNotificationType =
   | 'gmarket_promo'
   | 'delivery_status'
   | 'ticket_confirmed'
-  | 'support_message';
+  | 'support_message'
+  | 'seller_order'
+  | 'seller_follower'
+  | 'seller_review'
+  | 'seller_return'
+  | 'seller_payout'
+  | 'seller_application'
+  | 'seller_ad'
+  | 'seller_stock';
 
 export type AppNotification = {
   id: string;

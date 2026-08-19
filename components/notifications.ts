@@ -202,7 +202,7 @@ export async function presentLocalNotification(item: AppNotification) {
       data: {
         type: item.type,
         notificationId: item.id,
-        screen: item.type === 'support_message' ? 'support' : undefined,
+        screen: defaultScreenForType(item.type, item.data),
         ...(item.data || {}),
       },
       sound: 'default',
@@ -281,7 +281,7 @@ export async function announceNewInboxNotifications(
   // Seed inicial: histórico antigo — não spammar. Entrega fica de fora (sempre alertar).
   if (options?.bootstrap && seen.size === 0) {
     for (const item of unread) {
-      if (item.type === 'delivery_status') continue;
+      if (isUrgentInboxNotification(item)) continue;
       seen.add(item.id);
     }
     await saveSeenNotificationIds(seen);
@@ -410,7 +410,68 @@ export type NotificationRouteTarget =
   | { pathname: '/loja'; params: { id: string } }
   | { pathname: '/chat'; params?: undefined }
   | { pathname: '/(tabs)'; params?: undefined }
+  | { pathname: '/minha-loja'; params?: undefined }
+  | { pathname: '/minha-loja-pedidos'; params?: undefined }
+  | { pathname: '/minha-loja-produtos'; params?: undefined }
+  | { pathname: '/minha-loja-recebimentos'; params?: undefined }
+  | { pathname: '/minha-loja-publicidade'; params?: undefined }
+  | { pathname: '/abrir-loja'; params?: undefined }
+  | { pathname: '/fornecer'; params?: undefined }
   | null;
+
+const SELLER_NOTIFICATION_TYPES: AppNotification['type'][] = [
+  'seller_order',
+  'seller_follower',
+  'seller_review',
+  'seller_return',
+  'seller_payout',
+  'seller_application',
+  'seller_ad',
+  'seller_stock',
+];
+
+export function isSellerNotification(
+  item: Pick<AppNotification, 'type'> | { type?: unknown } | null | undefined,
+): boolean {
+  const type = item && typeof item === 'object' && typeof item.type === 'string' ? item.type : '';
+  return SELLER_NOTIFICATION_TYPES.includes(type as AppNotification['type']);
+}
+
+export function isUrgentInboxNotification(
+  item: Pick<AppNotification, 'type'> | { type?: unknown } | null | undefined,
+): boolean {
+  const type = item && typeof item === 'object' && typeof item.type === 'string' ? item.type : '';
+  return (
+    type === 'delivery_status'
+    || type === 'seller_order'
+    || type === 'seller_return'
+    || type === 'seller_application'
+  );
+}
+
+function defaultScreenForType(type: string, data?: Record<string, unknown> | null): string | undefined {
+  switch (type) {
+    case 'support_message':
+      return 'support';
+    case 'seller_order':
+    case 'seller_return':
+      return 'seller-orders';
+    case 'seller_follower':
+      return 'seller-hub';
+    case 'seller_review':
+      return typeof data?.productId === 'string' ? 'productDetail' : 'seller-hub';
+    case 'seller_payout':
+      return 'seller-payouts';
+    case 'seller_ad':
+      return 'seller-ads';
+    case 'seller_stock':
+      return 'seller-products';
+    case 'seller_application':
+      return data?.kind === 'supplier' ? 'supplier' : 'seller-application';
+    default:
+      return undefined;
+  }
+}
 
 export function resolveNotificationRoute(data: Record<string, unknown> | undefined | null): NotificationRouteTarget {
   if (!data || typeof data !== 'object') return null;
@@ -420,6 +481,8 @@ export function resolveNotificationRoute(data: Record<string, unknown> | undefin
   const storeId = typeof data.storeId === 'string' ? data.storeId : null;
   const screen = typeof data.screen === 'string' ? data.screen : null;
   const type = typeof data.type === 'string' ? data.type : null;
+  const kind = typeof data.kind === 'string' ? data.kind : null;
+  const status = typeof data.status === 'string' ? data.status : null;
 
   if (
     isChatNotification({ type, data })
@@ -429,6 +492,32 @@ export function resolveNotificationRoute(data: Record<string, unknown> | undefin
   ) {
     return { pathname: '/chat' };
   }
+
+  if (type === 'seller_order' || type === 'seller_return' || screen === 'seller-orders') {
+    return { pathname: '/minha-loja-pedidos' };
+  }
+  if (type === 'seller_payout' || screen === 'seller-payouts') {
+    return { pathname: '/minha-loja-recebimentos' };
+  }
+  if (type === 'seller_ad' || screen === 'seller-ads') {
+    return { pathname: '/minha-loja-publicidade' };
+  }
+  if (type === 'seller_stock' || screen === 'seller-products') {
+    return { pathname: '/minha-loja-produtos' };
+  }
+  if (type === 'seller_application' || screen === 'seller-application' || screen === 'supplier') {
+    if (kind === 'supplier' || screen === 'supplier') return { pathname: '/fornecer' };
+    if (status === 'approved') return { pathname: '/minha-loja' };
+    return { pathname: '/abrir-loja' };
+  }
+  if (type === 'seller_follower' || screen === 'seller-hub') {
+    return { pathname: '/minha-loja' };
+  }
+  if (type === 'seller_review') {
+    if (productId) return { pathname: '/productDetail', params: { id: productId } };
+    return { pathname: '/minha-loja' };
+  }
+
   if (productId || screen === 'productDetail') {
     if (productId) return { pathname: '/productDetail', params: { id: productId } };
   }

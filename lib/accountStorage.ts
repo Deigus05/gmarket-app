@@ -29,6 +29,14 @@ export const AccountDataKey = {
   hiddenSearchHistory: '@gmarket:hidden_search_history',
   /** Estado de pop-ups promocionais vistos (JSON: { [id]: ISO timestamp }) */
   promoInterstitialsSeen: '@gmarket:promo_interstitials_seen',
+  /** Pedido para fornecer produtos vendidos em nome da GMarket */
+  supplierApplication: '@gmarket:supplier_application',
+  /** Pedido de loja própria (KYC) */
+  storeApplication: '@gmarket:store_application',
+  /** Pedidos de publicidade da loja aprovada */
+  storeAdRequests: '@gmarket:store_ad_requests',
+  /** Rascunhos de produtos da loja (enquanto o backend não confirmar) */
+  storeProductDrafts: '@gmarket:store_product_drafts',
 } as const;
 
 export type AccountDataBase = (typeof AccountDataKey)[keyof typeof AccountDataKey];

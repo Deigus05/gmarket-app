@@ -46,9 +46,9 @@ const CARD_GALLERY_DECEL = Platform.OS === 'ios' ? 0.99 : 0.9;
 
 import { invalidateApiCache } from '@/components/apiCache';
 import { HomeTicketStrip } from '@/components/eventos/HomeTicketStrip';
-import HomeDisintegrate from '@/components/home/HomeDisintegrate';
 import { DesktopBannerStrip } from '@/components/home/DesktopBannerStrip';
 import { HomeDesktopHeader } from '@/components/home/HomeDesktopHeader';
+import HomeDisintegrate from '@/components/home/HomeDisintegrate';
 import { HomeMagicLayer, useHomeMagic } from '@/components/home/HomeMagicLayer';
 import { useLocale } from '@/components/LocaleContext';
 import { PulsatingDots } from '@/components/PulsatingDots';
@@ -68,6 +68,7 @@ import {
   setAccountItem,
   subscribeAccountScope,
 } from '@/lib/accountStorage';
+import { trackAdImpressions } from '@/lib/analytics';
 import { getCartJson, setCartJson } from '@/lib/cartStorage';
 import { connectChatSocket } from '@/lib/chatSocket';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
@@ -102,7 +103,6 @@ import {
   type HomeRecommendations,
   type SupportConversation,
 } from '../../components/api';
-import { trackAdImpressions } from '@/lib/analytics';
 import { useAuth } from '../../components/AuthContext';
 import CatalogoModal from '../../components/CatalogoModal';
 import LocalizacaoModal from '../../components/LocalizacaoModal';
