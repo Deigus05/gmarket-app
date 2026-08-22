@@ -21,10 +21,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gmarket.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "associatedDomains": [
-        "applinks:www.gmbissau.com",
-        "applinks:gmbissau.com"
+        "applinks:www.gmarketbissau.com",
+        "applinks:gmarketbissau.com"
       ],
       "entitlements": {
         "aps-environment": "production"
@@ -42,7 +42,7 @@
     },
     "android": {
       "package": "com.gmarket.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/gmarket-adaptive-foreground.png",
         "backgroundColor": "#ffffff"
@@ -67,12 +67,12 @@
           "data": [
             {
               "scheme": "https",
-              "host": "www.gmbissau.com",
+              "host": "www.gmarketbissau.com",
               "pathPrefix": "/"
             },
             {
               "scheme": "https",
-              "host": "gmbissau.com",
+              "host": "gmarketbissau.com",
               "pathPrefix": "/"
             }
           ]
@@ -88,7 +88,7 @@
       [
         "expo-router",
         {
-          "origin": "https://www.gmbissau.com"
+          "origin": "https://www.gmarketbissau.com"
         }
       ],
       [

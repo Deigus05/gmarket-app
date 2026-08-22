@@ -38,7 +38,7 @@ module.exports = ({ config }) => {
   const isEasBuild = process.env.EAS_BUILD === 'true';
   const deployTarget = process.env.DEPLOY_TARGET ?? '';
   const webOrigin = (
-    process.env.EXPO_PUBLIC_WEB_URL?.trim() || 'https://www.gmbissau.com'
+    process.env.EXPO_PUBLIC_WEB_URL?.trim() || 'https://www.gmarketbissau.com'
   ).replace(/\/$/, '');
   const baseUrl = deployTarget === 'gh-pages' ? '/gmarket-app' : '';
 

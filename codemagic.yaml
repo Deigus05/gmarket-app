@@ -34,7 +34,7 @@ workflows:
       java: 17
       vars:
         EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
-        EXPO_PUBLIC_WEB_URL: https://www.gmbissau.com
+        EXPO_PUBLIC_WEB_URL: https://www.gmarketbissau.com
         EXPO_UPDATES_CHANNEL: production
         NODE_ENV: production
         REQUIRE_ANDROID_FCM: "1"
@@ -123,7 +123,7 @@ workflows:
         XCODE_WORKSPACE: GMarket.xcworkspace
         XCODE_SCHEME: GMarket
         EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
-        EXPO_PUBLIC_WEB_URL: https://www.gmbissau.com
+        EXPO_PUBLIC_WEB_URL: https://www.gmarketbissau.com
         EXPO_UPDATES_CHANNEL: production
         NODE_ENV: production
         # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)

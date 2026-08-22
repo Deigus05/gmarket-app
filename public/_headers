@@ -1,0 +1,7 @@
+# Universal Links / App Links
+# https://developers.cloudflare.com/pages/configuration/headers/
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+
+/.well-known/assetlinks.json
+  Content-Type: application/json

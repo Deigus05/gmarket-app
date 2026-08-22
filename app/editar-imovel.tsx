@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPropertyById, PropertyStatus, updateProperty } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useAuth } from '@/components/AuthContext';
 import { useLocale } from '@/components/LocaleContext';
@@ -160,7 +160,7 @@ export default function EditarImovelScreen() {
         <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardFormScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>{t('editProperty.titleLabel')}</Text>
         <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={t('editProperty.titleLabel')} placeholderTextColor={ui.muted} />
 
@@ -236,7 +236,7 @@ export default function EditarImovelScreen() {
             <Text style={styles.saveBtnText}>{t('editProperty.save')}</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardFormScrollView>
     </View>
   );
 }

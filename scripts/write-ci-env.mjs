@@ -15,13 +15,13 @@ if (!apiUrl) {
 
 const lines = [
   `EXPO_PUBLIC_API_URL=${apiUrl}`,
-  `EXPO_PUBLIC_WEB_URL=${webUrl || 'https://www.gmbissau.com'}`,
+  `EXPO_PUBLIC_WEB_URL=${webUrl || 'https://www.gmarketbissau.com'}`,
 ];
 
 fs.writeFileSync('.env.production', `${lines.join('\n')}\n`, 'utf8');
 console.log('.env.production escrito para o bundle Expo.');
 console.log(`EXPO_PUBLIC_API_URL=${apiUrl}`);
-console.log(`EXPO_PUBLIC_WEB_URL=${webUrl || 'https://www.gmbissau.com'}`);
+console.log(`EXPO_PUBLIC_WEB_URL=${webUrl || 'https://www.gmarketbissau.com'}`);
 
 if (!mapsKey) {
   console.warn(

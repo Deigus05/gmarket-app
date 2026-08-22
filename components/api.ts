@@ -749,22 +749,39 @@ export type PromoInterstitial = {
 export type PromoInterstitialsPayload = {
   fullscreen: PromoInterstitial | null;
   sheet: PromoInterstitial | null;
+  fullscreen_items: PromoInterstitial[];
+  sheet_items: PromoInterstitial[];
 };
 
 /** Pop-ups promocionais elegíveis para o utilizador atual (auth opcional). */
 export async function getPromoInterstitials(
   token?: string | null,
 ): Promise<PromoInterstitialsPayload> {
-  const empty: PromoInterstitialsPayload = { fullscreen: null, sheet: null };
+  const empty: PromoInterstitialsPayload = {
+    fullscreen: null,
+    sheet: null,
+    fullscreen_items: [],
+    sheet_items: [],
+  };
   try {
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await apiFetch(`${API_URL}/api/promo-interstitials`, { headers });
     const result = await response.json();
     if (!response.ok || !result.success || !result.data) return empty;
+    const fullscreen = result.data.fullscreen || null;
+    const sheet = result.data.sheet || null;
+    const fullscreenItems = Array.isArray(result.data.fullscreen_items)
+      ? result.data.fullscreen_items
+      : (fullscreen ? [fullscreen] : []);
+    const sheetItems = Array.isArray(result.data.sheet_items)
+      ? result.data.sheet_items
+      : (sheet ? [sheet] : []);
     return {
-      fullscreen: result.data.fullscreen || null,
-      sheet: result.data.sheet || null,
+      fullscreen,
+      sheet,
+      fullscreen_items: fullscreenItems,
+      sheet_items: sheetItems,
     };
   } catch {
     return empty;

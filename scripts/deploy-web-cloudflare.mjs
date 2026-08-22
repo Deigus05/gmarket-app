@@ -52,4 +52,4 @@ fs.copyFileSync(path.join(dist, 'index.html'), path.join(dist, '404.html'));
 console.log(`[deploy-web:cf] Publishing to Cloudflare Pages project "${projectName}"…`);
 run('npx', ['--yes', 'wrangler', 'pages', 'deploy', 'dist', `--project-name=${projectName}`]);
 
-console.log('[deploy-web:cf] Depois liga www.gmbissau.com em Pages → Custom domains.');
+console.log('[deploy-web:cf] Depois liga www.gmarketbissau.com em Pages → Custom domains.');

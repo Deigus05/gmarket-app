@@ -8,7 +8,6 @@ import {
   FlatList,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +17,7 @@ import {
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import SafeMapView from '@/components/SafeMapView';
@@ -365,7 +365,7 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
               </View>
             )}
 
-            <ScrollView
+            <KeyboardFormScrollView
               style={styles.formContainer}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }}
@@ -408,7 +408,7 @@ export default function LocalizacaoModal({ visivel, onFechar, onSelecionarEndere
               <TouchableOpacity style={styles.submitButton} onPress={handleSalvarEndereco}>
                 <Text style={styles.submitButtonText}>{t('locationModal.confirm')}</Text>
               </TouchableOpacity>
-            </ScrollView>
+            </KeyboardFormScrollView>
           </View>
         )}
 

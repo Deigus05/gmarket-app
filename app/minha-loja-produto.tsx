@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCategories, type ProductCategory } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { Chip, Field, PhotoGrid, PrimaryButton, SellerHeader, useSellerStyles } from '@/components/seller/ui';
@@ -94,7 +95,7 @@ export default function MinhaLojaProdutoScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <SellerHeader title={t('sell.productNew')} onBack={() => router.back()} styles={styles} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardFormScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
         <Field label={t('sell.productTitle')} value={form.title} onChangeText={(title) => setForm((p) => ({ ...p, title }))} styles={styles} />
         <Field
           label={t('sell.productPrice')}
@@ -149,7 +150,7 @@ export default function MinhaLojaProdutoScreen() {
           styles={styles}
           disabled={saving}
         />
-      </ScrollView>
+      </KeyboardFormScrollView>
     </View>
   );
 }

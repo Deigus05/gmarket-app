@@ -85,9 +85,12 @@ export default function PromoInterstitialModal({
     setCopying(false);
 
     if (isSheet) {
+      backdrop.value = 0;
+      sheetY.value = sheetHeight + 40;
       backdrop.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
       sheetY.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) });
     } else {
+      fullOpacity.value = 0;
       fullOpacity.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
     }
   }, [visible, item?.id, isSheet, sheetHeight, backdrop, sheetY, fullOpacity]);
@@ -140,6 +143,12 @@ export default function PromoInterstitialModal({
 
   const hasProduct = Boolean(item.product_id);
   const hasPromo = Boolean(item.promo_code);
+  const hasText = Boolean(
+    (item.title || '').trim()
+    || (item.subtitle || '').trim()
+    || (item.promo_code || '').trim(),
+  );
+  const showOverlay = hasText || hasProduct || hasPromo;
 
   const copyBlock = (
     <>
@@ -200,7 +209,7 @@ export default function PromoInterstitialModal({
 
   if (isSheet) {
     return (
-      <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose}>
+      <Modal visible={visible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleClose}>
         <View style={styles.sheetRoot}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose}>
             <Animated.View style={[styles.backdrop, backdropStyle]} />
@@ -210,53 +219,46 @@ export default function PromoInterstitialModal({
               styles.sheet,
               sheetStyle,
               {
-                height: sheetHeight,
-                paddingBottom: Math.max(insets.bottom, 14),
-                backgroundColor: imageFill ? '#111' : bg,
+                height: sheetHeight + Math.max(insets.bottom, 0),
+                backgroundColor: imageFill ? '#FFF' : bg,
               },
             ]}
           >
             {imageFill ? (
               <Image
                 source={{ uri: item.image_url }}
-                style={StyleSheet.absoluteFill}
+                style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
                 contentFit="cover"
+                contentPosition="center"
                 transition={200}
               />
             ) : null}
-            {imageFill ? (
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.55)']}
-                style={styles.sheetFillScrim}
-                pointerEvents="none"
-              />
-            ) : null}
-            <View style={styles.sheetHandle} />
-            <Pressable
-              accessibilityLabel="Fechar"
-              onPress={handleClose}
-              style={[styles.closeBtn, styles.sheetClose]}
-              hitSlop={10}
-            >
-              <FontAwesome name="times" size={16} color="#FFF" />
-            </Pressable>
+            <View style={[styles.sheetInner, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+              <View style={styles.sheetHandle} />
+              <Pressable
+                accessibilityLabel="Fechar"
+                onPress={handleClose}
+                style={[styles.closeBtn, styles.sheetClose]}
+                hitSlop={10}
+              >
+                <FontAwesome name="times" size={16} color="#FFF" />
+              </Pressable>
 
-            {imageFill ? (
-              <View style={styles.sheetFillBody}>
-                {copyBlock}
-              </View>
-            ) : (
-              <View style={styles.sheetBody}>
-                <Image
-                  source={{ uri: item.image_url }}
-                  style={styles.sheetImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-                <View style={styles.sheetCopy}>{copyBlock}</View>
-              </View>
-            )}
-            {actions}
+              {imageFill ? (
+                <View style={styles.sheetFillBody}>{showOverlay ? copyBlock : null}</View>
+              ) : (
+                <View style={styles.sheetBody}>
+                  <Image
+                    source={{ uri: item.image_url }}
+                    style={styles.sheetImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  {showOverlay ? <View style={styles.sheetCopy}>{copyBlock}</View> : null}
+                </View>
+              )}
+              {showOverlay ? actions : null}
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -264,24 +266,21 @@ export default function PromoInterstitialModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleClose}>
       <Animated.View style={[styles.fullRoot, fullStyle]}>
         {imageFill ? (
           <Image
             source={{ uri: item.image_url }}
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
             contentFit="cover"
+            contentPosition="center"
             transition={220}
           />
         ) : (
           <LinearGradient colors={[gradient[0], gradient[1]]} style={StyleSheet.absoluteFill} />
         )}
-        {imageFill ? (
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.62)']}
-            style={styles.fullFillScrim}
-            pointerEvents="none"
-          />
+        {!showOverlay ? (
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         ) : null}
         <Pressable
           accessibilityLabel="Fechar"
@@ -293,15 +292,17 @@ export default function PromoInterstitialModal({
         </Pressable>
 
         {imageFill ? (
-          <View
-            style={[
-              styles.fullFillContent,
-              { paddingTop: Math.max(insets.top, 12) + 48, paddingBottom: Math.max(insets.bottom, 16) + 8 },
-            ]}
-          >
-            {copyBlock}
-            {actions}
-          </View>
+          showOverlay ? (
+            <View
+              style={[
+                styles.fullFillContent,
+                { paddingTop: Math.max(insets.top, 12) + 48, paddingBottom: Math.max(insets.bottom, 16) + 8 },
+              ]}
+            >
+              {copyBlock}
+              {actions}
+            </View>
+          ) : null
         ) : (
           <View style={[styles.fullContent, { paddingTop: Math.max(insets.top, 12) + 48 }]}>
             <View style={styles.fullImageWrap}>
@@ -313,10 +314,12 @@ export default function PromoInterstitialModal({
               />
             </View>
 
-            <View style={[styles.fullTextBlock, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-              {copyBlock}
-              {actions}
-            </View>
+            {showOverlay ? (
+              <View style={[styles.fullTextBlock, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+                {copyBlock}
+                {actions}
+              </View>
+            ) : null}
           </View>
         )}
       </Animated.View>
@@ -327,6 +330,7 @@ export default function PromoInterstitialModal({
 const styles = StyleSheet.create({
   fullRoot: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   fullContent: {
     flex: 1,
@@ -342,13 +346,6 @@ const styles = StyleSheet.create({
   fullImage: {
     width: '100%',
     height: '100%',
-  },
-  fullFillScrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '46%',
   },
   fullFillContent: {
     flex: 1,
@@ -367,12 +364,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.4,
     lineHeight: 34,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   fullSubtitle: {
     color: 'rgba(255,255,255,0.92)',
     fontSize: 15,
     fontWeight: '500',
     lineHeight: 22,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   closeBtn: {
     position: 'absolute',
@@ -395,15 +398,11 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingTop: 8,
     overflow: 'hidden',
   },
-  sheetFillScrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '58%',
+  sheetInner: {
+    flex: 1,
+    paddingTop: 8,
   },
   sheetHandle: {
     alignSelf: 'center',

@@ -1,9 +1,10 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { StoreFulfillmentMode } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { Chip, Field, PrimaryButton, SellerHeader, useSellerStyles } from '@/components/seller/ui';
@@ -87,7 +88,7 @@ export default function MinhaLojaDadosScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <SellerHeader title={t('sell.storeEditTitle')} onBack={() => router.back()} styles={styles} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardFormScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>{t('sell.storeEditLocked')}</Text>
         <Field label={t('sell.storeTradeName')} value={form.trade_name} onChangeText={(trade_name) => setForm({ ...form, trade_name })} styles={styles} />
         <Field label={t('sell.storeLegalName')} value={form.legal_name} onChangeText={() => undefined} styles={styles} editable={false} />
@@ -118,7 +119,7 @@ export default function MinhaLojaDadosScreen() {
           styles={styles}
           disabled={saving}
         />
-      </ScrollView>
+      </KeyboardFormScrollView>
     </View>
   );
 }

@@ -3,7 +3,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/components/AuthContext';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import type { EventDto } from '@/components/api';
 import { resolveEventDto } from '@/components/eventos/eventsData';
@@ -132,7 +132,7 @@ export default function BilheteDadosScreen() {
       {loading ? (
         <RippleWaveLoader style={{ marginTop: 40 }} color={ACCENT} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+        <KeyboardFormScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
           {event ? (
             <Text style={[styles.eventLine, { color: theme.muted }]}>
               {event.title} · ×{qty} · {event.priceLabel}
@@ -232,7 +232,7 @@ export default function BilheteDadosScreen() {
             <Text style={styles.advanceText}>{t('events.advance')}</Text>
             <Ionicons name="arrow-forward" size={18} color="#111" />
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardFormScrollView>
       )}
     </View>
   );

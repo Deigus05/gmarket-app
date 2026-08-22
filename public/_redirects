@@ -1,5 +1,7 @@
-# Cloudflare Pages — SPA fallback (quando o domínio custom estiver activo)
+# Cloudflare Pages — apex → www, depois SPA fallback
 # https://developers.cloudflare.com/pages/configuration/redirects/
+https://gmarketbissau.com/* https://www.gmarketbissau.com/:splat 301
+
 /*
   /index.html
   200

@@ -1,9 +1,10 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCategories, type ProductCategory } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import {
@@ -143,7 +144,7 @@ export default function FornecerPedidoScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <SellerHeader title={t('sell.supplyFormTitle')} onBack={() => router.back()} styles={styles} />
-      <ScrollView
+      <KeyboardFormScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
         keyboardShouldPersistTaps="handled"
       >
@@ -246,7 +247,7 @@ export default function FornecerPedidoScreen() {
           styles={styles}
           multiline
         />
-      </ScrollView>
+      </KeyboardFormScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.footerRow}>

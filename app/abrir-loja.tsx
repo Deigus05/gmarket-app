@@ -4,6 +4,7 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnnounceStepIndicator } from '@/components/AnnounceStepIndicator';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { getCategories, type ProductCategory, type StoreFulfillmentMode } from '@/components/api';
 import { useLocale } from '@/components/LocaleContext';
 import { PropertyMapPickerModal } from '@/components/PropertyMapPickerModal';
@@ -239,7 +240,7 @@ export default function AbrirLojaScreen() {
         <>
           <AnnounceStepIndicator currentStep={step} steps={steps} ui={ui} />
           <StepPageTransition step={step} direction={direction} style={{ flex: 1 }}>
-            <ScrollView
+            <KeyboardFormScrollView
               contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
               keyboardShouldPersistTaps="handled"
             >
@@ -517,7 +518,7 @@ export default function AbrirLojaScreen() {
                   />
                 </>
               )}
-            </ScrollView>
+            </KeyboardFormScrollView>
           </StepPageTransition>
 
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>

@@ -18,7 +18,7 @@ API: proxy Cloudflare `gmarket-api-proxy.puzzling-apricot.workers.dev`
 
 ### Opção B — Cloudflare Pages (quando tiveres token)
 
-Não precisa de domínio pago — dá um `*.pages.dev` até ligares `gmbissau.com`.
+Não precisa de domínio pago — dá um `*.pages.dev` até ligares `gmarketbissau.com`.
 
 1. Cria API token: [Create token](https://dash.cloudflare.com/profile/api-tokens)  
    Permissão: **Account → Cloudflare Pages → Edit**
@@ -29,14 +29,14 @@ Não precisa de domínio pago — dá um `*.pages.dev` até ligares `gmbissau.co
    ```
 3. Actualiza `.env.production` com o URL `*.pages.dev` que o Wrangler mostrar, rebuild e redeploy.
 
-## Depois (domínio gmbissau.com na Cloudflare)
+## Depois (domínio gmarketbissau.com na Cloudflare)
 
-1. Comprar / adicionar `gmbissau.com` na Cloudflare.
-2. Em **Pages → Custom domains** → `www.gmbissau.com` (e redirect `gmbissau.com` → `www`).
+1. Comprar / adicionar `gmarketbissau.com` na Cloudflare.
+2. Em **Pages → Custom domains** → `www.gmarketbissau.com` (e redirect `gmarketbissau.com` → `www`).
 3. Actualizar `.env.production`:
    ```env
    EXPO_PUBLIC_API_URL=https://gmarket-api-proxy.puzzling-apricot.workers.dev
-   EXPO_PUBLIC_WEB_URL=https://www.gmbissau.com
+   EXPO_PUBLIC_WEB_URL=https://www.gmarketbissau.com
    ```
 4. Rebuild **sem** `DEPLOY_TARGET=gh-pages` (base `/`):
    ```bash

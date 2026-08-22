@@ -6,9 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   InteractionManager,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -30,6 +28,7 @@ import {
 } from '@/components/api';
 import { cacheKeyProduct, cacheKeyStore, invalidateApiCache } from '@/components/apiCache';
 import { useAuth } from '@/components/AuthContext';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { StarRating, STAR_GOLD } from '@/components/StarRating';
@@ -602,10 +601,7 @@ export default function AvaliacaoScreen() {
           if (!saving) closeDraft();
         }}
       >
-        <KeyboardAvoidingView
-          style={[styles.modalRoot, { paddingTop: insets.top + 8 }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <View style={[styles.modalRoot, { paddingTop: insets.top + 8 }]}>
           <View style={styles.modalHeader}>
             <Pressable onPress={() => { if (!saving) closeDraft(); }} hitSlop={10}>
               <Text style={styles.modalCancel}>{t('common.cancel')}</Text>
@@ -620,7 +616,7 @@ export default function AvaliacaoScreen() {
             </Pressable>
           </View>
 
-          <ScrollView
+          <KeyboardFormScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 40 }}
           >
@@ -709,8 +705,8 @@ export default function AvaliacaoScreen() {
                 </Pressable>
               ) : null}
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardFormScrollView>
+        </View>
       </Modal>
     </View>
   );

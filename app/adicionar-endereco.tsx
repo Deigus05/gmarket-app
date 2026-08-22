@@ -5,9 +5,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,6 +15,7 @@ import {
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthContext';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import SafeMapView from '@/components/SafeMapView';
@@ -195,10 +194,7 @@ export default function AdicionarEnderecoScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={{ flex: 1 }}>
         {USE_NATIVE_MAP ? (
           <View style={styles.mapWrapper} collapsable={false}>
             <SafeMapView
@@ -251,7 +247,7 @@ export default function AdicionarEnderecoScreen() {
           </View>
         )}
 
-        <ScrollView
+        <KeyboardFormScrollView
           style={styles.form}
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
@@ -311,8 +307,8 @@ export default function AdicionarEnderecoScreen() {
           <TouchableOpacity style={styles.skipBtn} onPress={finishFlow}>
             <Text style={styles.skipText}>{t('address.later')}</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardFormScrollView>
+      </View>
     </View>
   );
 }

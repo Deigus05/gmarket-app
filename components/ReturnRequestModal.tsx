@@ -4,11 +4,8 @@ import { Image } from 'expo-image';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { submitOrderReturn, type Order, type OrderItem } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useAppTheme, type AppUI } from '@/components/tema';
@@ -123,10 +121,7 @@ export function ReturnRequestModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={[styles.root, { paddingTop: insets.top + 8 }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
           <Pressable style={styles.iconBtn} onPress={onClose} hitSlop={8}>
             <Ionicons name="close" size={22} color={ui.text} />
@@ -138,7 +133,7 @@ export function ReturnRequestModal({
           <View style={styles.iconBtnSpacer} />
         </View>
 
-        <ScrollView
+        <KeyboardFormScrollView
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -217,8 +212,8 @@ export function ReturnRequestModal({
               <Text style={styles.submitText}>{t('delivery.returnSubmit')}</Text>
             )}
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardFormScrollView>
+      </View>
     </Modal>
   );
 }

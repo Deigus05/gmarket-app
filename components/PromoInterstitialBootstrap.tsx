@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, InteractionManager } from 'react-native';
+import { Alert, AppState, InteractionManager } from 'react-native';
 
 import { useAuth } from '@/components/AuthContext';
 import PromoInterstitialModal from '@/components/PromoInterstitialModal';
@@ -30,6 +30,15 @@ function sameCalendarDay(iso: string, now = new Date()) {
     && d.getMonth() === now.getMonth()
     && d.getDate() === now.getDate()
   );
+}
+
+function firstEligible(
+  items: PromoInterstitial[],
+  seen: SeenMap,
+): PromoInterstitial | null {
+  return items.find((item) =>
+    shouldShowByFrequency(item.id, item.frequency || 'every_launch', seen),
+  ) || null;
 }
 
 function shouldShowByFrequency(
@@ -110,6 +119,7 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
   const { token, loading: authLoading } = useAuth();
   const router = useRouter();
   const startedRef = useRef(false);
+  const showingRef = useRef(false);
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const interactionRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(
     null,
@@ -141,66 +151,81 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
 
   const advance = useCallback((rest: PromoInterstitial[]) => {
     if (!rest.length) {
+      showingRef.current = false;
       setCurrent(null);
       setVisible(false);
       setQueue([]);
       return;
     }
     const [next, ...tail] = rest;
+    showingRef.current = true;
     setQueue(tail);
     setCurrent(next);
     setVisible(true);
     void markSeen(next.id);
   }, []);
 
+  const loadCandidates = useCallback(async () => {
+    const payload = await getPromoInterstitials(token);
+    const seen = await readSeenMap();
+    const fullList = payload.fullscreen_items?.length
+      ? payload.fullscreen_items
+      : (payload.fullscreen ? [payload.fullscreen] : []);
+    const sheetList = payload.sheet_items?.length
+      ? payload.sheet_items
+      : (payload.sheet ? [payload.sheet] : []);
+    const candidates: PromoInterstitial[] = [];
+    const fullscreen = firstEligible(fullList, seen);
+    const sheet = firstEligible(sheetList, seen);
+    if (fullscreen) candidates.push(fullscreen);
+    if (sheet) candidates.push(sheet);
+    return candidates;
+  }, [token]);
+
   useEffect(() => {
-    if (!enabled || authLoading || startedRef.current) return;
-    startedRef.current = true;
+    if (!enabled || authLoading) return;
 
     let cancelled = false;
 
-    // Pequeno atraso para a home pintar antes do overlay
+    const tryShow = async (retries = 2) => {
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        if (cancelled || showingRef.current) return;
+        try {
+          const candidates = await loadCandidates();
+          if (cancelled || showingRef.current) return;
+          if (candidates.length) {
+            startedRef.current = true;
+            advance(candidates);
+            return;
+          }
+        } catch {
+          // tenta outra vez
+        }
+        if (attempt < retries) {
+          await new Promise((resolve) => {
+            schedule(() => resolve(undefined), 1600);
+          });
+        }
+      }
+    };
+
     const startupTimer = schedule(() => {
-      void (async () => {
-        if (cancelled) return;
+      void tryShow();
+    }, startedRef.current ? 80 : 450);
 
-        const payload = await getPromoInterstitials(token);
-        const seen = await readSeenMap();
-        if (cancelled) return;
-
-        const candidates: PromoInterstitial[] = [];
-        if (
-          payload.fullscreen
-          && shouldShowByFrequency(
-            payload.fullscreen.id,
-            payload.fullscreen.frequency || 'once_per_day',
-            seen,
-          )
-        ) {
-          candidates.push(payload.fullscreen);
-        }
-        if (
-          payload.sheet
-          && shouldShowByFrequency(
-            payload.sheet.id,
-            payload.sheet.frequency || 'once_per_day',
-            seen,
-          )
-        ) {
-          candidates.push(payload.sheet);
-        }
-
-        if (!candidates.length) return;
-        advance(candidates);
-      })();
-    }, 450);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !showingRef.current) {
+        void tryShow(0);
+      }
+    });
 
     return () => {
       cancelled = true;
       clearTimeout(startupTimer);
       timersRef.current.delete(startupTimer);
+      sub.remove();
     };
-  }, [enabled, authLoading, token, advance, schedule]);
+  }, [enabled, authLoading, token, advance, schedule, loadCandidates]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
@@ -213,6 +238,7 @@ export function PromoInterstitialBootstrap({ enabled }: Props) {
     (productId: string) => {
       if (!productId || navigationPendingRef.current) return;
       navigationPendingRef.current = true;
+      showingRef.current = false;
       setVisible(false);
       setCurrent(null);
       setQueue([]);

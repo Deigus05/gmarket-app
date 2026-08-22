@@ -292,8 +292,9 @@ export default function ProfileScreen() {
     ];
 
     return (
-      <View style={styles.guestScreen} collapsable={false}>
+      <View key="profile-guest" style={styles.guestScreen} collapsable={false}>
         <ScrollView
+          key="profile-guest-scroll"
           style={styles.guestOverlay}
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
@@ -369,8 +370,9 @@ export default function ProfileScreen() {
   const genderLabel = user.genero === 'masculino' ? t('profile.male') : t('profile.female');
 
   return (
-    <View style={styles.mainWrapper}>
+    <View key="profile-auth" style={styles.mainWrapper}>
       <ScrollView
+        key="profile-auth-scroll"
         style={{ flex: 1, paddingTop: Math.max(insets.top, 12) + 12 }}
         contentContainerStyle={{ flexGrow: 1 }}
         contentInsetAdjustmentBehavior="never"

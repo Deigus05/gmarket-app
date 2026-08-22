@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnnounceStepIndicator } from '@/components/AnnounceStepIndicator';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useAuth } from '@/components/AuthContext';
 import { PropertyMapPickerModal } from '@/components/PropertyMapPickerModal';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
@@ -412,7 +413,7 @@ export default function AnunciarImovelScreen() {
       <AnnounceStepIndicator currentStep={step} steps={steps} ui={ui} />
 
       <StepPageTransition step={step} direction={direction}>
-        <ScrollView
+        <KeyboardFormScrollView
           style={styles.pageScroll}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
@@ -696,7 +697,7 @@ export default function AnunciarImovelScreen() {
             <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
           </>
           )}
-        </ScrollView>
+        </KeyboardFormScrollView>
       </StepPageTransition>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>

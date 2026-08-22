@@ -6,10 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   InteractionManager,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -48,6 +45,7 @@ import {
 } from '@/lib/cartStorage';
 import { parseCartItems } from '@/lib/cartTypes';
 import { useAuth } from '@/components/AuthContext';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import TornadoOverlay from '@/components/TornadoOverlay';
@@ -953,11 +951,7 @@ export default function CheckoutScreen() {
         <View style={styles.headerBtnPlaceholder} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
+      <KeyboardFormScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 + insets.bottom }}
         >
@@ -1359,8 +1353,7 @@ export default function CheckoutScreen() {
               <Text style={styles.totalValue}>{formatPaymentAmount(total)}</Text>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardFormScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         <View style={styles.bottomTotal}>

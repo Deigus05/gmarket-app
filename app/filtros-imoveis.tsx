@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGbLocations, getLiveProperties, GbRegion } from '@/components/api';
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
@@ -299,7 +299,7 @@ export default function FiltrosImoveisScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardFormScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.section}>{t('filters.purpose')}</Text>
         <View style={styles.wrap}>
           {PROPERTY_PURPOSES.map((item) => (
@@ -453,7 +453,7 @@ export default function FiltrosImoveisScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardFormScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={counting}>

@@ -1,8 +1,9 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardFormScrollView } from '@/components/KeyboardFormScrollView';
 import { useLocale } from '@/components/LocaleContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { Chip, Field, PhotoGrid, PrimaryButton, SellerHeader, useSellerStyles } from '@/components/seller/ui';
@@ -110,7 +111,7 @@ export default function MinhaLojaPublicidadeScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <SellerHeader title={t('sell.adsTitle')} onBack={() => router.back()} styles={styles} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardFormScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>{t('sell.hubAdsHint')}</Text>
 
         <Text style={styles.label}>{t('sell.adsTarget')}</Text>
@@ -155,7 +156,7 @@ export default function MinhaLojaPublicidadeScreen() {
             <Text style={styles.mutedLine}>{item.status}</Text>
           </View>
         ))}
-      </ScrollView>
+      </KeyboardFormScrollView>
     </View>
   );
 }
