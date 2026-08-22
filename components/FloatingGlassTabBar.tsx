@@ -410,7 +410,7 @@ function TabItem({
 
 const styles = StyleSheet.create({
   wrap: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
     left: 0,
     right: 0,
     bottom: 0,

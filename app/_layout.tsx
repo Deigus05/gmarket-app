@@ -20,6 +20,7 @@ import { PromoInterstitialBootstrap } from '@/components/PromoInterstitialBootst
 import '@/components/notifications';
 import { ThemeProvider, useAppTheme } from '@/components/tema';
 import { WebThemeSync } from '@/components/WebThemeSync';
+import { WebMobileDocumentScroll } from '@/components/WebMobileDocumentScroll';
 import { hideNativeSplashSafe, keepNativeSplash } from '@/lib/splash';
 import { prefetchPlatformContacts } from '@/lib/support';
 
@@ -168,6 +169,7 @@ function ThemedNavigation() {
   return (
     <NavThemeProvider value={navTheme}>
       <WebThemeSync />
+      <WebMobileDocumentScroll />
       <StatusBar style={ui.statusBar} />
       <Stack
         screenOptions={{

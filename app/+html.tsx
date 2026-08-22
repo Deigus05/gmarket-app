@@ -6,7 +6,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no" />
         <meta name="theme-color" content="#F5F5F7" />
         <script
           dangerouslySetInnerHTML={{
@@ -31,6 +31,20 @@ body {
   color: #1C1C1E;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+/* Telemóvel: o documento faz scroll — Safari/Chrome escondem a barra ao deslizar. */
+html.gm-mobile-doc-scroll,
+html.gm-mobile-doc-scroll body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+html.gm-mobile-doc-scroll #root {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
 }
 /* Fundos claros típicos do SSR RN-web — forçar cinza no modo escuro do telemóvel. */
 @media (prefers-color-scheme: dark) {

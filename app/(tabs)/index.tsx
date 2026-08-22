@@ -60,6 +60,13 @@ import {
   RecommendedStores,
 } from '@/components/recommendations';
 import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
+import {
+  lockWindowScroll,
+  readWindowScrollY,
+  scrollWindowToTop,
+  unlockMobileDocumentScroll,
+  unlockWindowScroll,
+} from '@/lib/webDocumentScroll';
 import { useAppTheme, type HomePalette } from '@/components/tema';
 import { useBreakpoint, type BreakpointLayout } from '@/hooks/useBreakpoint';
 import {
@@ -967,10 +974,29 @@ export default function HomeScreen() {
   useEffect(() => {
     if (Platform.OS === 'ios') return;
     const sub = DeviceEventEmitter.addListener(HOME_TAB_PRESS_EVENT, () => {
+      if (Platform.OS === 'web') {
+        scrollWindowToTop(true);
+        return;
+      }
       homeScrollRef.current?.scrollToOffset({ offset: 0, animated: true });
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || isDesktop) return;
+    unlockMobileDocumentScroll();
+    const onScroll = () => {
+      scrollY.value = readWindowScrollY();
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    const retry = window.setTimeout(() => unlockMobileDocumentScroll(), 400);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.clearTimeout(retry);
+    };
+  }, [isDesktop, scrollY]);
 
   // Troca de conta: limpa UI sensível imediatamente (evita flash da conta anterior).
   useEffect(() => {
@@ -1434,7 +1460,11 @@ export default function HomeScreen() {
 
   const startMagicAndScroll = useCallback(() => {
     if (Platform.OS === 'android') return;
-    homeScrollRef.current?.scrollToOffset({ offset: 0, animated: false });
+    if (Platform.OS === 'web') {
+      scrollWindowToTop(false);
+    } else {
+      homeScrollRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
     requestAnimationFrame(() => {
       void (async () => {
         try {
@@ -1697,12 +1727,14 @@ export default function HomeScreen() {
   );
 
   const lockFeedScroll = useCallback(() => {
-    // setNativeProps evita re-render do feed (que também saltava a posição).
-    homeScrollRef.current?.setNativeProps({ scrollEnabled: false });
+    // setNativeProps não existe no DOM (web) — optional call evita o crash no telemóvel.
+    homeScrollRef.current?.setNativeProps?.({ scrollEnabled: false });
+    if (Platform.OS === 'web') lockWindowScroll();
   }, []);
 
   const unlockFeedScroll = useCallback(() => {
-    homeScrollRef.current?.setNativeProps({ scrollEnabled: true });
+    homeScrollRef.current?.setNativeProps?.({ scrollEnabled: true });
+    if (Platform.OS === 'web') unlockWindowScroll();
   }, []);
 
   const renderFeedItem = useCallback(
@@ -1759,6 +1791,7 @@ export default function HomeScreen() {
 
   return (
     <View
+      nativeID="gm-home-feed"
       style={[
         styles.mainWrapper,
         isDesktop && { backgroundColor: ui.bg },
@@ -1805,10 +1838,15 @@ export default function HomeScreen() {
             keyExtractor={keyExtractor}
             numColumns={feedColumns}
             extraData={{ favorites, cartQtyById, chatUnread, unreadNotifications, columnWidth }}
-            style={[styles.list, magicRunning && styles.listMagic]}
+            style={[
+              styles.list,
+              magicRunning && styles.listMagic,
+              Platform.OS === 'web' && !isDesktop && styles.listWebDocument,
+            ]}
             contentContainerStyle={[
               styles.listContent,
               isDesktop && styles.listContentDesktop,
+              Platform.OS === 'web' && !isDesktop && styles.listContentWebDocument,
               magicRunning && styles.listContentMagic,
               // Espaço só o necessário para o último produto ficar acima da tab bar.
               {
@@ -1824,7 +1862,7 @@ export default function HomeScreen() {
             overScrollMode="never"
             onScroll={scrollHandler}
             scrollEventThrottle={16}
-            scrollEnabled={!magicRunning}
+            scrollEnabled={Platform.OS === 'web' && !isDesktop ? false : !magicRunning}
             contentInsetAdjustmentBehavior="never"
             refreshControl={
               magicRunning ? undefined : (
@@ -1840,9 +1878,9 @@ export default function HomeScreen() {
             }
             ListHeaderComponent={listHeaderWithError}
             ListEmptyComponent={listEmpty}
-            initialNumToRender={isDesktop ? 15 : 8}
-            maxToRenderPerBatch={isDesktop ? 12 : 8}
-            windowSize={7}
+            initialNumToRender={isDesktop ? 15 : Platform.OS === 'web' ? 24 : 8}
+            maxToRenderPerBatch={isDesktop ? 12 : Platform.OS === 'web' ? 16 : 8}
+            windowSize={Platform.OS === 'web' && !isDesktop ? 21 : 7}
             removeClippedSubviews={false}
           />
           {Platform.OS === 'ios' ? (
@@ -1979,6 +2017,12 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       backgroundColor: 'transparent',
       zIndex: 1,
     },
+    listWebDocument: {
+      flexGrow: 0,
+      flexShrink: 0,
+      height: 'auto',
+      overflow: 'visible',
+    },
     listMagic: {
       backgroundColor: 'transparent',
     },
@@ -1986,6 +2030,9 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       paddingBottom: 24,
       backgroundColor: isDark ? '#0E0E0E' : C.surface,
       flexGrow: 1,
+    },
+    listContentWebDocument: {
+      flexGrow: 0,
     },
     listContentDesktop: {
       backgroundColor: isDark ? '#0E0E0E' : '#F5F5F7',
@@ -2040,7 +2087,7 @@ function createHomeStyles(C: HomePalette, isDark: boolean, layout: BreakpointLay
       justifyContent: 'center',
     },
     stickyWrap: {
-      position: 'absolute',
+      position: Platform.OS === 'web' ? 'fixed' : 'absolute',
       top: 0,
       left: 0,
       right: 0,
