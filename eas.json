@@ -8,6 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
+      "channel": "development",
       "android": {
         "buildType": "apk"
       }
@@ -16,6 +17,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
+      "channel": "development",
       "ios": {
         "simulator": true
       }

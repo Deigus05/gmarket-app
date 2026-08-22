@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gmarket.app",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "associatedDomains": [
         "applinks:www.gmbissau.com",
         "applinks:gmbissau.com"
@@ -42,7 +42,7 @@
     },
     "android": {
       "package": "com.gmarket.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/gmarket-adaptive-foreground.png",
         "backgroundColor": "#ffffff"
@@ -163,10 +163,20 @@
         {
           "motionPermission": "Permita que o GMarket detecte o movimento do telemóvel para a experiência Mágica."
         }
-      ]
+      ],
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/20c5ce91-b451-4f2b-ac29-3a1133c0deed",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     },
     "extra": {
       "router": {},

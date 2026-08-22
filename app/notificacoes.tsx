@@ -470,7 +470,9 @@ export default function NotificacoesScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filterBar}
         contentContainerStyle={styles.filters}
+        keyboardShouldPersistTaps="handled"
       >
         {filterKeys.map((key) => {
           const active = filter === key;
@@ -591,24 +593,35 @@ function createStyles(ui: AppUI) {
       backgroundColor: ui.danger,
     },
     deleteBtnText: { color: '#FFF', fontWeight: '700', fontSize: 12 },
+    filterBar: {
+      flexGrow: 0,
+      flexShrink: 0,
+      marginBottom: 8,
+    },
     filters: {
       flexDirection: 'row',
+      alignItems: 'center',
       gap: 8,
       paddingHorizontal: 16,
-      marginBottom: 8,
-      paddingBottom: 8,
+      paddingVertical: 2,
     },
     chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
+      height: 30,
+      paddingHorizontal: 12,
       borderRadius: 999,
-      backgroundColor: ui.card,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth * 2,
       borderColor: ui.border,
+      backgroundColor: ui.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
     },
-    chipActive: { backgroundColor: ui.brand, borderColor: ui.brand },
-    chipText: { fontSize: 12, fontWeight: '700', color: ui.muted },
-    chipTextActive: { color: '#FFF' },
+    chipActive: {
+      backgroundColor: ui.brandSoft,
+      borderColor: ui.brand,
+    },
+    chipText: { fontSize: 11, fontWeight: '700', color: ui.text },
+    chipTextActive: { color: ui.text },
     list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
     listEmpty: { flexGrow: 1, justifyContent: 'center' },
     swipeDelete: {

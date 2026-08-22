@@ -8,7 +8,31 @@
  *
  * DEPLOY_TARGET=gh-pages → baseUrl /gmarket-app (GitHub Pages).
  * Cloudflare / domínio próprio → sem DEPLOY_TARGET (raiz /).
+ *
+ * Canal OTA (EAS Update):
+ * 1) EXPO_UPDATES_CHANNEL
+ * 2) EAS_BUILD_PROFILE (development | preview | production)
+ * 3) CI/Codemagic → production
+ * EAS Build também grava o canal a partir de eas.json.
  */
+function resolveUpdateChannel() {
+  const explicit = process.env.EXPO_UPDATES_CHANNEL?.trim();
+  if (explicit) return explicit;
+
+  const profile = process.env.EAS_BUILD_PROFILE?.trim();
+  if (profile === 'production') return 'production';
+  if (profile === 'preview') return 'preview';
+  if (profile === 'development' || profile === 'development-simulator') {
+    return 'development';
+  }
+
+  if (process.env.CI === '1' || Boolean(process.env.CM_BUILD_DIR)) {
+    return 'production';
+  }
+
+  return null;
+}
+
 module.exports = ({ config }) => {
   const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY ?? '';
   const isEasBuild = process.env.EAS_BUILD === 'true';
@@ -19,6 +43,7 @@ module.exports = ({ config }) => {
   const baseUrl = deployTarget === 'gh-pages' ? '/gmarket-app' : '';
 
   const isCiBuild = isEasBuild || process.env.CI === '1' || Boolean(process.env.CM_BUILD_DIR);
+  const updateChannel = resolveUpdateChannel();
   if (isCiBuild && !googleMapsApiKey) {
     console.warn(
       '[GMarket] GOOGLE_MAPS_API_KEY ausente neste build — MapView ficará em branco. ' +
@@ -43,6 +68,17 @@ module.exports = ({ config }) => {
   return {
     ...config,
     plugins,
+    updates: {
+      ...(config.updates ?? {}),
+      ...(updateChannel
+        ? {
+            requestHeaders: {
+              ...(config.updates?.requestHeaders ?? {}),
+              'expo-channel-name': updateChannel,
+            },
+          }
+        : {}),
+    },
     experiments: {
       ...(config.experiments ?? {}),
       ...(baseUrl ? { baseUrl } : {}),
