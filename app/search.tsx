@@ -44,7 +44,9 @@ import {
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
 import { parseCmsNavigationTarget } from '@/lib/navigation';
 import {
+  formatProductPrice,
   getFavoriteProductIds,
+  normalizeProductPrice,
   subscribeProductFavorites,
   toggleProductFavorite,
   toFavProduct,
@@ -448,6 +450,8 @@ export default function SearchScreen() {
     ({ item }: { item: Product }) => {
       const imageUri = listImageUrl(item.image_urls, item.image_url, FALLBACK_IMAGE, 'card');
       const isFavorite = favoriteSet.has(item.id);
+      const regularPrice = normalizeProductPrice(item.preco);
+      const gcoinPrice = normalizeProductPrice(item.preco_gpay) || regularPrice;
 
       return (
         <View style={styles.productGridItem}>
@@ -483,18 +487,18 @@ export default function SearchScreen() {
 
             <View style={styles.priceContainer}>
               <Text style={styles.normalPrice}>
-                {Number(item.preco || 0).toLocaleString()} CFA
+                {formatProductPrice(regularPrice)} CFA
               </Text>
             </View>
 
-            <View style={styles.gcoinRow}>
+            {gcoinPrice > 0 ? <View style={styles.gcoinRow}>
               <Text style={styles.gcoinPrice}>
-                {Number(item.preco_gpay || 0).toLocaleString()} GCoin
+                {formatProductPrice(gcoinPrice)} GCoin
               </Text>
               <View style={styles.gpayBadge}>
                 <Text style={styles.gpayBadgeText}>GPay</Text>
               </View>
-            </View>
+            </View> : null}
           </TouchableOpacity>
         </View>
       );

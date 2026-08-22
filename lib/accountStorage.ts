@@ -150,12 +150,68 @@ async function purgeLegacyUnscopedKeys() {
   }
 }
 
+function mergeCartJson(currentRaw: string | null, guestRaw: string | null): string | null {
+  if (!guestRaw) return currentRaw;
+  try {
+    const current: unknown = currentRaw ? JSON.parse(currentRaw) : [];
+    const guest: unknown = JSON.parse(guestRaw);
+    if (!Array.isArray(guest)) return currentRaw;
+    const merged = Array.isArray(current) ? [...current] : [];
+    const indexByKey = new Map<string, number>();
+    merged.forEach((value, index) => {
+      const item = value as { id?: unknown; productId?: unknown; variantId?: unknown };
+      const key = String(item.id || `${item.productId || ''}:${item.variantId || 'default'}`);
+      indexByKey.set(key, index);
+    });
+    guest.forEach((value) => {
+      const item = value as { id?: unknown; productId?: unknown; variantId?: unknown };
+      const key = String(item.id || `${item.productId || ''}:${item.variantId || 'default'}`);
+      const existing = indexByKey.get(key);
+      if (existing === undefined) {
+        indexByKey.set(key, merged.length);
+        merged.push(value);
+      } else {
+        merged[existing] = value;
+      }
+    });
+    return JSON.stringify(merged);
+  } catch {
+    return currentRaw || guestRaw;
+  }
+}
+
+async function migrateGuestCommerceData(userId: string): Promise<void> {
+  const guestCartKey = scopedKey(AccountDataKey.cart, GUEST_SCOPE);
+  const guestDraftKey = scopedKey(AccountDataKey.checkoutDraft, GUEST_SCOPE);
+  const userCartKey = scopedKey(AccountDataKey.cart, userId);
+  const userDraftKey = scopedKey(AccountDataKey.checkoutDraft, userId);
+  const [guestCart, guestDraft, userCart] = await AsyncStorage.multiGet([
+    guestCartKey,
+    guestDraftKey,
+    userCartKey,
+  ]).then((entries) => entries.map(([, value]) => value));
+
+  const updates: Array<[string, string]> = [];
+  const mergedCart = mergeCartJson(userCart, guestCart);
+  if (mergedCart) updates.push([userCartKey, mergedCart]);
+  if (guestDraft) updates.push([userDraftKey, guestDraft]);
+  if (updates.length) await AsyncStorage.multiSet(updates);
+  await AsyncStorage.multiRemove([guestCartKey, guestDraftKey]);
+}
+
 /**
  * Associa o telemóvel à conta `userId`.
  * Limpa chaves legadas partilhadas para não vazar dados da conta anterior.
  */
 export async function bindAccount(userId: string): Promise<void> {
   const previous = await getActiveAccountId();
+  if (!previous) {
+    try {
+      await migrateGuestCommerceData(userId);
+    } catch {
+      // Login must remain usable even when local commerce migration fails.
+    }
+  }
   memoryAccountId = userId;
   await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, userId);
   await purgeLegacyUnscopedKeys();

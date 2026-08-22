@@ -347,15 +347,6 @@ export default function BilhetePagamentoScreen() {
       };
     }
 
-    // GPay fica confirmado de imediato (servidor ou fallback de status)
-    if (method === 'gpay' && ticket.status !== 'confirmed') {
-      ticket = {
-        ...ticket,
-        status: 'confirmed',
-        confirmed_at: ticket.confirmed_at || new Date().toISOString(),
-      };
-    }
-
     await saveLocalTicket(ticket);
 
     void notifyAdminOfSale({
@@ -386,10 +377,24 @@ export default function BilhetePagamentoScreen() {
     });
 
     setSubmitting(false);
-    const isConfirmed = ticket.status === 'confirmed' || method === 'gpay';
+    const isConfirmed = ticket.status === 'confirmed';
+    const isCancelled = ticket.status === 'cancelled';
+    const isGpayPending = method === 'gpay' && !isConfirmed && !isCancelled;
     Alert.alert(
-      isConfirmed ? t('events.gpaySuccessTitle') : t('events.finalizeTitle'),
-      isConfirmed ? t('events.gpaySuccessBody') : t('events.finalizeBody'),
+      isConfirmed
+        ? t('events.gpaySuccessTitle')
+        : isCancelled
+          ? t('events.purchaseErrorTitle')
+          : isGpayPending
+            ? t('events.gpayPendingTitle')
+            : t('events.finalizeTitle'),
+      isConfirmed
+        ? t('events.gpaySuccessBody')
+        : isCancelled
+          ? t('delivery.statusCancelled')
+          : isGpayPending
+            ? t('events.gpayPendingBody')
+            : t('events.finalizeBody'),
       [
         {
           text: t('events.purchaseOk'),

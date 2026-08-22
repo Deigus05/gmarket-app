@@ -175,8 +175,16 @@ function useEntregaTheme() {
   return { ui, isDark, styles };
 }
 
-function paymentLabel(method: Order['payment_method'], t: TranslateFn, pickup = false) {
-  if (method === 'gpay') return 'GPay';
+function paymentLabel(order: Order, t: TranslateFn, pickup = false) {
+  if (order.payment_method === 'gpay') {
+    const status =
+      order.payment_status === 'paid'
+        ? t('gpay.paid')
+        : order.payment_status === 'refunded'
+          ? t('gpay.refunded')
+          : t('gpay.pending');
+    return `GPay · ${status}`;
+  }
   return pickup ? t('delivery.payOnPickup') : t('delivery.payOnDelivery');
 }
 
@@ -809,14 +817,6 @@ export default function EntregaScreen() {
     ? (pickup ? PICKUP_STATUS_INDEX : STATUS_INDEX)[selectedOrder.status] ?? 0
     : 0;
   const cancelled = selectedOrder?.status === 'cancelled';
-  const itemsTotal = useMemo(
-    () =>
-      selectedOrder
-        ? (selectedOrder.items || []).reduce((sum, item) => sum + (item.line_total || 0), 0)
-        : 0,
-    [selectedOrder],
-  );
-
   const handleCancel = () => {
     if (!selectedOrder || !token || !canCancel(selectedOrder)) return;
 
@@ -1020,7 +1020,6 @@ export default function EntregaScreen() {
               order={selectedOrder!}
               currentStep={currentStep}
               cancelled={cancelled}
-              itemsTotal={itemsTotal}
               cancelling={cancelling}
               onCancel={handleCancel}
               canReturn={
@@ -1147,7 +1146,6 @@ function OrderDetail({
   order,
   currentStep,
   cancelled,
-  itemsTotal,
   cancelling,
   onCancel,
   canReturn,
@@ -1160,7 +1158,6 @@ function OrderDetail({
   order: Order;
   currentStep: number;
   cancelled: boolean;
-  itemsTotal: number;
   cancelling: boolean;
   onCancel: () => void;
   canReturn: boolean;
@@ -1176,6 +1173,8 @@ function OrderDetail({
   const steps = useMemo(() => getSteps(t, pickup), [t, pickup]);
   const item = firstItem(order);
   const tone = statusTone(order.status, ui);
+  const discountAmount = order.discount_amount ?? 0;
+  const hasPromotion = discountAmount > 0 || Boolean(order.promo_code);
 
   return (
     <Animated.View entering={FadeInDown.duration(380)} style={{ gap: 12 }}>
@@ -1333,8 +1332,17 @@ function OrderDetail({
         <View style={styles.totalsBox}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{t('delivery.subtotal')}</Text>
-            <Text style={styles.totalValue}>{formatCfa(itemsTotal)}</Text>
+            <Text style={styles.totalValue}>{formatCfa(order.subtotal)}</Text>
           </View>
+          {hasPromotion ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                {t('checkout.promoDiscount')}
+                {order.promo_code ? ` (${order.promo_code})` : ''}
+              </Text>
+              <Text style={styles.totalValue}>-{formatCfa(discountAmount)}</Text>
+            </View>
+          ) : null}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{t('delivery.deliveryFee')}</Text>
             <Text style={styles.totalValue}>
@@ -1343,7 +1351,7 @@ function OrderDetail({
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{t('delivery.payment')}</Text>
-            <Text style={styles.totalValue}>{paymentLabel(order.payment_method, t, pickup)}</Text>
+            <Text style={styles.totalValue}>{paymentLabel(order, t, pickup)}</Text>
           </View>
           <View style={[styles.totalRow, styles.totalRowFinal]}>
             <Text style={styles.totalFinalLabel}>{t('common.total')}</Text>

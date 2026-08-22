@@ -9,6 +9,7 @@ import { useAppTheme } from '@/components/tema';
 import { HomeDesktopHeader } from '@/components/home/HomeDesktopHeader';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { getCartJson, setCartJson, setCheckoutDraftJson } from '@/lib/cartStorage';
+import { type CartItem, parseCartItems } from '@/lib/cartTypes';
 import { optimizedImageUrl } from '@/lib/imageOptimization';
 import { mergeProductReviews } from '@/lib/localReviews';
 import {
@@ -18,6 +19,7 @@ import {
     toggleProductFavorite,
 } from '@/lib/productFavorites';
 import { createPublicUrl } from '@/lib/publicUrl';
+import { cartItemId, hasDedicatedGpayPrice } from '@/lib/productPricing';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -324,34 +326,6 @@ type DetailPalette = {
   line: string;
 };
 
-interface CartItem {
-  id: string;
-  title: string;
-  price: number;
-  image: string;
-  quantity: number;
-  selected: boolean;
-  productId?: string;
-  variantId?: string;
-  variantLabel?: string;
-  maxStock?: number;
-  storeId?: string;
-  storeName?: string;
-  storeLogo?: string;
-  storeCover?: string;
-  storeVerified?: boolean;
-}
-
-function parseCartItems(raw: string | null): CartItem[] {
-  if (!raw) return [];
-  try {
-    const value: unknown = JSON.parse(raw);
-    return Array.isArray(value) ? (value as CartItem[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 function BuyNowButton({
   disabled,
   loading,
@@ -497,7 +471,7 @@ export default function ProductDetailScreen() {
             id: member.id,
             titulo: member.titulo,
             preco: member.preco,
-            preco_gpay: member.preco,
+            preco_gpay: member.preco_gpay ?? 0,
             image_url: member.image_url,
             stock: member.stock,
             group_id: group.id,
@@ -1023,7 +997,7 @@ export default function ProductDetailScreen() {
       const storedProductId = item.productId || item.id;
       const sameProduct = storedProductId === product.id;
       const sameVariant = item.variantId === selectedCombination.id;
-      const legacyMatch = isVirtualProduct && !item.variantId && item.id === product.id;
+      const legacyMatch = isVirtualProduct && !item.variantId;
       return sameProduct && (sameVariant || legacyMatch);
     });
   };
@@ -1087,7 +1061,9 @@ export default function ProductDetailScreen() {
       cartList[productIndex].maxStock = max;
       cartList[productIndex].image = coverImage;
       cartList[productIndex].price =
-        selectedCombination.preco_gpay > 0 ? selectedCombination.preco_gpay : selectedCombination.preco;
+        selectedCombination.preco;
+      cartList[productIndex].regularPrice = selectedCombination.preco;
+      cartList[productIndex].gpayPrice = selectedCombination.preco_gpay;
       cartList[productIndex].variantLabel = variantLabel;
       cartList[productIndex].storeId = storeId;
       cartList[productIndex].storeName = storeName;
@@ -1096,14 +1072,16 @@ export default function ProductDetailScreen() {
       cartList[productIndex].storeVerified = storeVerified;
     } else {
       cartList.push({
-        id: `${product.id}:${selectedCombination.id}`,
+        id: cartItemId(product.id, selectedCombination.legacy ? undefined : selectedCombination.id),
         title: product.titulo,
-        price: selectedCombination.preco_gpay > 0 ? selectedCombination.preco_gpay : selectedCombination.preco,
+        price: selectedCombination.preco,
+        regularPrice: selectedCombination.preco,
+        gpayPrice: selectedCombination.preco_gpay,
         image: coverImage,
         quantity: qty,
         selected: true,
         productId: product.id,
-        variantId: selectedCombination.id,
+        variantId: selectedCombination.legacy ? undefined : selectedCombination.id,
         variantLabel,
         maxStock: max,
         storeId,
@@ -1196,9 +1174,9 @@ export default function ProductDetailScreen() {
         variantId: selectedCombination.legacy ? undefined : selectedCombination.id,
         title: product.titulo,
         image: coverImage,
-        price: String(
-          selectedCombination.preco_gpay > 0 ? selectedCombination.preco_gpay : selectedCombination.preco
-        ),
+        price: String(selectedCombination.preco),
+        regularPrice: String(selectedCombination.preco),
+        gpayPrice: String(selectedCombination.preco_gpay),
         quantity: String(qty),
         variantLabel: variantLabel || '',
         maxStock: String(selectedCombination.stock),
@@ -1503,6 +1481,17 @@ export default function ProductDetailScreen() {
               <Text style={styles.premiumBlackPrice}>
                 {displayRegularPrice.toLocaleString()} CFA
               </Text>
+              <View style={styles.gcoinDetailRow}>
+                <Text style={styles.gcoinDetailPrice}>
+                  {(hasDedicatedGpayPrice(displayGpayPrice)
+                    ? displayGpayPrice
+                    : displayRegularPrice).toLocaleString()} GCoin
+                </Text>
+                <View style={styles.gpayBadgeBox}>
+                  <Ionicons name="wallet" size={11} color={C.accent} />
+                  <Text style={styles.gpayBadgeText}>GPay</Text>
+                </View>
+              </View>
               <View style={styles.desktopBuyActions}>
                 {cartQuantity > 0 && canAddToCart ? (
                   <View style={styles.qtyDock}>

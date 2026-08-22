@@ -70,6 +70,7 @@ import {
 } from '@/lib/accountStorage';
 import { trackAdImpressions } from '@/lib/analytics';
 import { getCartJson, setCartJson } from '@/lib/cartStorage';
+import { type CartItem as HomeCartItem, parseCartItems } from '@/lib/cartTypes';
 import { connectChatSocket } from '@/lib/chatSocket';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
 import {
@@ -79,6 +80,7 @@ import {
   syncLocalTicketsToServer,
 } from '@/lib/localTickets';
 import { parseCmsNavigationTarget } from '@/lib/navigation';
+import { cartItemId, formatCfa, formatGcoin, productPrices } from '@/lib/productPricing';
 import {
   getFavoriteProductIds,
   subscribeProductFavorites,
@@ -90,6 +92,7 @@ import {
   getHomeBanners,
   getHomeRecommendations,
   getLiveProducts,
+  getProductById,
   getMyNotifications,
   getMyOrders,
   getMyTickets,
@@ -123,24 +126,6 @@ const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400';
 const G_CART_LOGO = require('../../assets/images/g-cart-logo.png');
 
-type HomeCartItem = {
-  id: string;
-  title: string;
-  price: number;
-  image: string;
-  quantity: number;
-  selected: boolean;
-  productId?: string;
-  variantId?: string;
-  variantLabel?: string;
-  maxStock?: number;
-  storeId?: string;
-  storeName?: string;
-  storeLogo?: string;
-  storeCover?: string;
-  storeVerified?: boolean;
-};
-
 function productIdFromCartItem(item: HomeCartItem): string | undefined {
   if (item.productId) return item.productId;
   const fromId = item.id?.split(':')[0];
@@ -151,9 +136,7 @@ async function readCartQtyByProductId(): Promise<Record<string, number>> {
   try {
     const raw = await getCartJson();
     if (!raw) return {};
-    const value: unknown = JSON.parse(raw);
-    if (!Array.isArray(value)) throw new Error('Carrinho local inválido');
-    const cart = value as HomeCartItem[];
+    const cart = parseCartItems(raw);
     const map: Record<string, number> = {};
     for (const item of cart) {
       const pid = productIdFromCartItem(item);
@@ -775,13 +758,13 @@ const FeedProductCard = memo(function FeedProductCard({
 
         <View style={styles.priceContainer}>
           <Text style={styles.normalPrice}>
-            {parseFloat(product.preco as any).toLocaleString()} CFA
+            {formatCfa(product.preco)}
           </Text>
         </View>
 
         <View style={styles.gcoinRow}>
           <Text style={styles.gcoinPrice}>
-            {parseFloat(product.preco_gpay as any).toLocaleString()} GCoin
+            {formatGcoin(Number(product.preco_gpay) > 0 ? product.preco_gpay : product.preco)}
           </Text>
           <View style={styles.gpayBadge}>
             <Text style={styles.gpayBadgeText}>GPay</Text>
@@ -1373,9 +1356,7 @@ export default function HomeScreen() {
 
     try {
       const raw = await getCartJson();
-      const value: unknown = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(value)) throw new Error('Carrinho local inválido');
-      let cartList = value as HomeCartItem[];
+      let cartList = parseCartItems(raw);
       const alreadyInCart = cartList.some(
         (item) => productIdFromCartItem(item) === product.id,
       );
@@ -1397,15 +1378,23 @@ export default function HomeScreen() {
           return next;
         });
       } else {
+        const detail = await getProductById(product.id).catch(() => null);
+        if (detail?.variants?.dimensions?.length) {
+          router.push({ pathname: '/productDetail', params: { id: product.id } });
+          return;
+        }
         const image = listImageUrl(product.image_urls, product.image_url, FALLBACK_IMAGE, 'thumb');
-        const price =
-          Number(product.preco_gpay) > 0 ? Number(product.preco_gpay) : Number(product.preco) || 0;
+        const prices = productPrices(
+          detail?.preco ?? product.preco,
+          detail?.preco_gpay ?? product.preco_gpay,
+        );
 
         cartList.push({
-          id: product.id,
+          id: cartItemId(product.id),
           productId: product.id,
           title: product.titulo,
-          price,
+          price: prices.regularPrice,
+          ...prices,
           image,
           quantity: 1,
           selected: true,
@@ -1429,7 +1418,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.log('Erro ao atualizar carrinho na home:', error);
     }
-  }, [token]);
+  }, [router, token]);
 
   const openProduct = useCallback((id: string) => {
     if (!id) return;

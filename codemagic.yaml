@@ -10,6 +10,8 @@
 # - android_fcm: GOOGLE_SERVICES_JSON (obrigatório para push Android)
 # - Opcional: GOOGLE_MAPS_API_KEY (sem isto o MapView fica em branco no nativo)
 #
+# Antes de disparar o build: commit + push destas alterações para o branch do workflow.
+#
 # PUSH / NOTIFICAÇÕES
 # - Android APK: exige GOOGLE_SERVICES_JSON (secret) com Firebase package com.gmarket.app.
 #   Backend → Expo Push API → FCM v1. Sem este ficheiro o push em background/fechado falha.
@@ -32,6 +34,7 @@ workflows:
       java: 17
       vars:
         EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
+        EXPO_PUBLIC_WEB_URL: https://www.gmbissau.com
         NODE_ENV: production
         REQUIRE_ANDROID_FCM: "1"
         # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
@@ -40,32 +43,21 @@ workflows:
       - name: Install npm dependencies
         script: |
           set -euo pipefail
-          npm ci || npm install
+          # NODE_ENV=production would otherwise omit TypeScript and @types/*.
+          npm ci --include=dev || npm install --include=dev
       - name: Verify TypeScript
         script: |
           set -euo pipefail
           npx tsc --noEmit --pretty false
+      - name: Write production env for Expo
+        script: |
+          set -euo pipefail
+          node scripts/write-ci-env.mjs
       - name: Ensure production (no expo-dev-client)
         script: |
           set -euo pipefail
           npm uninstall expo-dev-client || true
-          node <<'NODE'
-          const fs = require('fs');
-          for (const file of ['package.json', 'app.json']) {
-            if (!fs.existsSync(file)) continue;
-            const raw = fs.readFileSync(file, 'utf8');
-            const json = JSON.parse(raw);
-            if (json.dependencies) delete json.dependencies['expo-dev-client'];
-            if (json.devDependencies) delete json.devDependencies['expo-dev-client'];
-            if (Array.isArray(json.expo?.plugins)) {
-              json.expo.plugins = json.expo.plugins.filter((plugin) => {
-                const name = Array.isArray(plugin) ? plugin[0] : plugin;
-                return name !== 'expo-dev-client';
-              });
-            }
-            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
-          }
-          NODE
+          node scripts/ensure-production.mjs
       - name: Configure Firebase (FCM push em background/fechado)
         script: |
           set -euo pipefail
@@ -130,6 +122,7 @@ workflows:
         XCODE_WORKSPACE: GMarket.xcworkspace
         XCODE_SCHEME: GMarket
         EXPO_PUBLIC_API_URL: https://gmarket-api-proxy.puzzling-apricot.workers.dev
+        EXPO_PUBLIC_WEB_URL: https://www.gmbissau.com
         NODE_ENV: production
         # Defina GOOGLE_MAPS_API_KEY nas Environment variables do Codemagic (ou num group)
         # para mapas nativos no IPA.
@@ -137,32 +130,21 @@ workflows:
       - name: Install npm dependencies
         script: |
           set -euo pipefail
-          npm ci || npm install
+          # NODE_ENV=production would otherwise omit TypeScript and @types/*.
+          npm ci --include=dev || npm install --include=dev
       - name: Verify TypeScript
         script: |
           set -euo pipefail
           npx tsc --noEmit --pretty false
+      - name: Write production env for Expo
+        script: |
+          set -euo pipefail
+          node scripts/write-ci-env.mjs
       - name: Ensure production (no expo-dev-client)
         script: |
           set -euo pipefail
           npm uninstall expo-dev-client || true
-          node <<'NODE'
-          const fs = require('fs');
-          for (const file of ['package.json', 'app.json']) {
-            if (!fs.existsSync(file)) continue;
-            const raw = fs.readFileSync(file, 'utf8');
-            const json = JSON.parse(raw);
-            if (json.dependencies) delete json.dependencies['expo-dev-client'];
-            if (json.devDependencies) delete json.devDependencies['expo-dev-client'];
-            if (Array.isArray(json.expo?.plugins)) {
-              json.expo.plugins = json.expo.plugins.filter((plugin) => {
-                const name = Array.isArray(plugin) ? plugin[0] : plugin;
-                return name !== 'expo-dev-client';
-              });
-            }
-            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
-          }
-          NODE
+          node scripts/ensure-production.mjs
       - name: Generate iOS native project
         script: |
           set -euo pipefail

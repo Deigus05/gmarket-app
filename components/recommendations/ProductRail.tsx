@@ -13,6 +13,7 @@ import type { Product } from '@/components/api';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { listImageUrl } from '@/lib/imageOptimization';
+import { formatProductPrice, normalizeProductPrice } from '@/lib/productFavorites';
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400';
@@ -44,6 +45,8 @@ const ProductCard = memo(function ProductCard({
   styles: ReturnType<typeof createStyles>;
   onPress: (id: string) => void;
 }) {
+  const regularPrice = normalizeProductPrice(product.preco);
+  const gcoinPrice = normalizeProductPrice(product.preco_gpay) || regularPrice;
   return (
     <TouchableOpacity
       style={styles.card}
@@ -69,16 +72,16 @@ const ProductCard = memo(function ProductCard({
         ) : null;
       })()}
       <Text style={styles.normalPrice}>
-        {Number(product.preco || 0).toLocaleString()} CFA
+        {formatProductPrice(regularPrice)} CFA
       </Text>
-      <View style={styles.gcoinRow}>
+      {gcoinPrice > 0 ? <View style={styles.gcoinRow}>
         <Text style={styles.gcoinPrice}>
-          {Number(product.preco_gpay || 0).toLocaleString()} GCoin
+          {formatProductPrice(gcoinPrice)} GCoin
         </Text>
         <View style={styles.gpayBadge}>
           <Text style={styles.gpayBadgeText}>GPay</Text>
         </View>
-      </View>
+      </View> : null}
     </TouchableOpacity>
   );
 });

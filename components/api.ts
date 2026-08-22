@@ -182,6 +182,7 @@ export interface ProductGroupMember {
   image_url: string | null;
   group_label: string;
   preco: number;
+  preco_gpay?: number;
   stock: number;
 }
 
@@ -1252,6 +1253,8 @@ export async function syncCartToServer(
     variantLabel?: string;
     image?: string;
     price: number;
+    regularPrice?: number;
+    gpayPrice?: number;
     quantity: number;
   }>,
 ): Promise<void> {
@@ -1267,7 +1270,7 @@ export async function syncCartToServer(
           title: item.title,
           variant_label: item.variantLabel || null,
           image_url: item.image || null,
-          unit_price: Number(item.price) || 0,
+          unit_price: Number(item.regularPrice ?? item.price) || 0,
           quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
         };
       })
@@ -1368,7 +1371,7 @@ export async function validatePromoCode(
   },
 ): Promise<ApiResult<PromoCodeValidation>> {
   try {
-    const response = await fetch(`${API_URL}/api/promo-codes/validate`, {
+    const response = await apiFetch(`${API_URL}/api/promo-codes/validate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1461,7 +1464,7 @@ export async function createOrderBatch(
   },
 ): Promise<ApiResult<OrderBatchResult>> {
   try {
-    const response = await fetch(`${API_URL}/api/orders/batch`, {
+    const response = await apiFetch(`${API_URL}/api/orders/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

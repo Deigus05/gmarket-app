@@ -33,6 +33,7 @@ import {
   createOrderBatch,
   getGcoinWallet,
   getProductById,
+  syncCartToServer,
   validatePromoCode,
   type LiveStore,
   type PromoCodeValidation,
@@ -45,12 +46,21 @@ import {
   setCartJson,
   setCheckoutDraftJson,
 } from '@/lib/cartStorage';
+import { parseCartItems } from '@/lib/cartTypes';
 import { useAuth } from '@/components/AuthContext';
 import { RippleWaveLoader } from '@/components/RippleWaveLoader';
 import { useLocale } from '@/components/LocaleContext';
 import TornadoOverlay from '@/components/TornadoOverlay';
 import { useAppTheme } from '@/components/tema';
 import { trackAnalytics } from '@/lib/analytics';
+import {
+  cartItemId,
+  formatCfa,
+  formatGcoin,
+  normalizeVariantId,
+  parseMoney,
+  resolveUnitPrice,
+} from '@/lib/productPricing';
 
 const DEFAULT_DELIVERY_FEE = 1500;
 
@@ -76,6 +86,8 @@ type CheckoutLine = {
   title: string;
   image: string;
   price: string;
+  regularPrice: string;
+  gpayPrice: string;
   quantity: string;
   variantLabel?: string;
   maxStock?: string;
@@ -107,11 +119,50 @@ function normalizeCheckoutLines(raw: unknown): CheckoutLine[] {
   if (!raw || typeof raw !== 'object') return [];
   const data = raw as CheckoutDraftStored;
   if ('items' in data && Array.isArray(data.items)) {
-    return data.items.filter((item) => item?.productId && item?.title);
+    return data.items
+      .filter((item) => item?.productId && item?.title)
+      .map(normalizeCheckoutLine);
   }
   const single = data as CheckoutLine;
-  if (single.productId && single.title) return [single];
+  if (single.productId && single.title) return [normalizeCheckoutLine(single)];
   return [];
+}
+
+function normalizeCheckoutLine(line: CheckoutLine): CheckoutLine {
+  const regularPrice = parseMoney(line.regularPrice, parseMoney(line.price));
+  return {
+    ...line,
+    variantId: normalizeVariantId(line.variantId),
+    price: String(regularPrice),
+    regularPrice: String(regularPrice),
+    gpayPrice: String(parseMoney(line.gpayPrice)),
+    quantity: String(Math.max(1, Math.floor(parseMoney(line.quantity, 1)))),
+  };
+}
+
+async function hydrateCheckoutLines(lines: CheckoutLine[]): Promise<CheckoutLine[]> {
+  return Promise.all(
+    lines.map(async (line) => {
+      const product = await getProductById(line.productId).catch(() => null);
+      if (!product) return normalizeCheckoutLine(line);
+      const variantId = normalizeVariantId(line.variantId);
+      const variant = variantId
+        ? product.variants?.combinations?.find((item) => item.id === variantId)
+        : product.variants?.combinations?.find((item) => item.is_default)
+          ?? product.variants?.combinations?.[0];
+      const regularPrice = parseMoney(variant?.preco ?? product.preco);
+      const gpayPrice = parseMoney(variant?.preco_gpay ?? product.preco_gpay);
+      const stock = variant?.stock ?? product.stock;
+      return {
+        ...line,
+        variantId,
+        price: String(regularPrice),
+        regularPrice: String(regularPrice),
+        gpayPrice: String(gpayPrice),
+        maxStock: String(Math.max(0, Number(stock) || 0)),
+      };
+    }),
+  );
 }
 
 function persistCheckoutLines(lines: CheckoutLine[]) {
@@ -144,10 +195,11 @@ export default function CheckoutScreen() {
 
   const [lines, setLines] = useState<CheckoutLine[]>([]);
   const [loadingDraft, setLoadingDraft] = useState(true);
-  const [gpayBalance, setGpayBalance] = useState(0);
+  const [gpayBalance, setGpayBalance] = useState<number | null>(null);
   const [orderMethod, setOrderMethod] = useState<OrderMethod>('entrega');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('entrega');
   const [checkoutStore, setCheckoutStore] = useState<LiveStore | null>(null);
+  const [checkoutStores, setCheckoutStores] = useState<LiveStore[]>([]);
   const [loadingCheckoutStore, setLoadingCheckoutStore] = useState(false);
   const [deliveryByProduct, setDeliveryByProduct] = useState<Record<string, ProductDeliveryInfo>>({});
   const [editingBuyer, setEditingBuyer] = useState(false);
@@ -159,7 +211,12 @@ export default function CheckoutScreen() {
   const purchaseInFlightRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const [showTornado, setShowTornado] = useState(false);
-  const [successOrder, setSuccessOrder] = useState<{ id: string; orderNumber: string } | null>(null);
+  const [successOrder, setSuccessOrder] = useState<{
+    id: string;
+    orderNumber: string;
+    orderNumbers: string[];
+    chargedTotal: number;
+  } | null>(null);
   const [promoInput, setPromoInput] = useState('');
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoApplying, setPromoApplying] = useState(false);
@@ -212,14 +269,17 @@ export default function CheckoutScreen() {
             title: paramValue(params.title),
             image: paramValue(params.image),
             price: paramValue(params.price),
+            regularPrice: paramValue(params.regularPrice) || paramValue(params.price),
+            gpayPrice: paramValue(params.gpayPrice),
             quantity: paramValue(params.quantity) || '1',
             variantLabel: paramValue(params.variantLabel) || undefined,
             maxStock: paramValue(params.maxStock) || undefined,
           };
 
           if (fromParams.productId && fromParams.title) {
-            await persistCheckoutLines([fromParams]);
-            if (active) setLines([fromParams]);
+            const hydrated = await hydrateCheckoutLines([fromParams]);
+            await persistCheckoutLines(hydrated);
+            if (active) setLines(hydrated);
           } else {
             const stored = await getCheckoutDraftJson();
             let parsed: CheckoutLine[] = [];
@@ -230,7 +290,11 @@ export default function CheckoutScreen() {
                 await clearCheckoutDraft();
               }
             }
-            if (active) setLines(parsed);
+            const hydrated = await hydrateCheckoutLines(parsed);
+            if (JSON.stringify(parsed) !== JSON.stringify(hydrated)) {
+              await persistCheckoutLines(hydrated);
+            }
+            if (active) setLines(hydrated);
           }
         } finally {
           if (active) setLoadingDraft(false);
@@ -240,10 +304,10 @@ export default function CheckoutScreen() {
         if (token) {
           const wallet = await getGcoinWallet(token);
           if (active) {
-            setGpayBalance(wallet.success ? wallet.data.balance : 0);
+            setGpayBalance(wallet.success ? wallet.data.balance : null);
           }
         } else {
-          setGpayBalance(0);
+          setGpayBalance(null);
         }
       }
 
@@ -251,7 +315,17 @@ export default function CheckoutScreen() {
       return () => {
         active = false;
       };
-    }, [params.productId, params.title, params.price, params.quantity, params.image, refreshUser, token])
+    }, [
+      params.productId,
+      params.title,
+      params.price,
+      params.regularPrice,
+      params.gpayPrice,
+      params.quantity,
+      params.image,
+      refreshUser,
+      token,
+    ])
   );
 
   useFocusEffect(
@@ -268,6 +342,7 @@ export default function CheckoutScreen() {
       if (productIds.length === 0) {
         if (active) {
           setCheckoutStore(null);
+          setCheckoutStores([]);
           setDeliveryByProduct({});
           setLoadingCheckoutStore(false);
         }
@@ -278,6 +353,7 @@ export default function CheckoutScreen() {
       try {
         const nextDelivery: Record<string, ProductDeliveryInfo> = {};
         let nextStore: LiveStore | null = null;
+        const nextStores = new Map<string, LiveStore>();
 
         for (const productId of productIds) {
           const product = await getProductById(productId);
@@ -292,9 +368,9 @@ export default function CheckoutScreen() {
             time: product.delivery_time?.trim() || null,
           };
 
-          if (!nextStore && product.store?.id) {
+          if (product.store?.id) {
             const store = product.store;
-            nextStore = {
+            const liveStore: LiveStore = {
               id: store.id,
               name: store.name,
               slug: store.slug || '',
@@ -308,12 +384,15 @@ export default function CheckoutScreen() {
               opening_hours: store.opening_hours ?? null,
               fulfillment_mode: store.fulfillment_mode ?? 'ambos',
             };
+            if (!nextStore) nextStore = liveStore;
+            nextStores.set(liveStore.id, liveStore);
           }
         }
 
         if (active) {
           setDeliveryByProduct(nextDelivery);
           setCheckoutStore(nextStore);
+          setCheckoutStores(Array.from(nextStores.values()));
         }
       } finally {
         if (active) setLoadingCheckoutStore(false);
@@ -326,9 +405,16 @@ export default function CheckoutScreen() {
     };
   }, [lines]);
 
-  const fulfillmentMode = checkoutStore?.fulfillment_mode || 'ambos';
-  const allowsDelivery = fulfillmentMode === 'ambos' || fulfillmentMode === 'entrega';
-  const allowsPickup = fulfillmentMode === 'ambos' || fulfillmentMode === 'recolha';
+  const allowsDelivery =
+    checkoutStores.length === 0 ||
+    checkoutStores.every(
+      (store) =>
+        (store.fulfillment_mode || 'ambos') === 'ambos' ||
+        store.fulfillment_mode === 'entrega',
+    );
+  const allowsPickup =
+    checkoutStores.length <= 1 &&
+    (checkoutStores[0]?.fulfillment_mode || 'ambos') !== 'entrega';
 
   useEffect(() => {
     if (!allowsDelivery && allowsPickup && orderMethod !== 'recolha') {
@@ -341,28 +427,40 @@ export default function CheckoutScreen() {
   }, [allowsDelivery, allowsPickup, orderMethod]);
 
   const subtotal = lines.reduce((acc, line) => {
-    const unitPrice = Number(line.price || 0);
+    const unitPrice = resolveUnitPrice(
+      {
+        regularPrice: parseMoney(line.regularPrice, parseMoney(line.price)),
+        gpayPrice: parseMoney(line.gpayPrice),
+      },
+      paymentMethod,
+    );
     const quantity = Math.max(1, Number(line.quantity || 1));
     return acc + unitPrice * quantity;
   }, 0);
   const deliveryFee =
     orderMethod === 'entrega'
-      ? lines.reduce((acc, line) => {
-          const info = deliveryByProduct[line.productId];
-          return acc + (info?.fee ?? DEFAULT_DELIVERY_FEE);
-        }, 0)
+      ? Object.values(deliveryByProduct).reduce(
+          (acc, info) => acc + (info?.fee ?? DEFAULT_DELIVERY_FEE),
+          0,
+        )
       : 0;
   const promoItems = useMemo(
     () =>
       lines.map((line) => {
-        const unitPrice = Number(line.price || 0);
+        const unitPrice = resolveUnitPrice(
+          {
+            regularPrice: parseMoney(line.regularPrice, parseMoney(line.price)),
+            gpayPrice: parseMoney(line.gpayPrice),
+          },
+          paymentMethod,
+        );
         const quantity = Math.max(1, Number(line.quantity || 1));
         return {
           productId: line.productId,
           subtotal: unitPrice * quantity,
         };
       }),
-    [lines],
+    [lines, paymentMethod],
   );
   const promoProductIds = useMemo(
     () => promoItems.map((item) => item.productId).filter(Boolean),
@@ -370,7 +468,8 @@ export default function CheckoutScreen() {
   );
   const discountAmount = Math.min(subtotal, Math.max(0, Number(appliedPromo?.discount_amount || 0)));
   const total = Math.max(0, subtotal + deliveryFee - discountAmount);
-  const canPayWithGpay = gpayBalance >= total;
+  const canPayWithGpay = gpayBalance !== null && gpayBalance >= total;
+  const formatPaymentAmount = paymentMethod === 'gpay' ? formatGcoin : formatCfa;
 
   useEffect(() => {
     if (!appliedPromo) return;
@@ -460,12 +559,13 @@ export default function CheckoutScreen() {
 
   const paymentHint = useMemo(() => {
     if (paymentMethod === 'gpay') {
+      if (gpayBalance === null) return t('checkout.gpayUnavailable');
       return canPayWithGpay
         ? t('checkout.gpayDebitHint')
         : t('checkout.gpayInsufficient');
     }
     return orderMethod === 'recolha' ? t('checkout.cashHintPickup') : t('checkout.cashHint');
-  }, [paymentMethod, canPayWithGpay, orderMethod, t]);
+  }, [paymentMethod, canPayWithGpay, gpayBalance, orderMethod, t]);
 
   const handleEditAddress = async () => {
     if (lines.length > 0) {
@@ -556,7 +656,14 @@ export default function CheckoutScreen() {
 
       <Animated.View entering={ZoomIn.delay(340).springify()} style={styles.orderNumberBox}>
         <Text style={styles.orderNumberLabel}>{t('checkout.orderNumber')}</Text>
-        <Text style={styles.orderNumberValue}>#{successOrder.orderNumber}</Text>
+        <Text style={styles.orderNumberValue}>
+          {successOrder.orderNumbers.map((number) => `#${number}`).join('\n')}
+        </Text>
+        <Text style={styles.helperText}>
+          {paymentMethod === 'gpay'
+            ? formatGcoin(successOrder.chargedTotal)
+            : formatCfa(successOrder.chargedTotal)}
+        </Text>
       </Animated.View>
 
       <TouchableOpacity style={styles.successPrimaryBtn} onPress={goToOrder} activeOpacity={0.9}>
@@ -582,6 +689,10 @@ export default function CheckoutScreen() {
 
   const handleConfirmPurchase = async () => {
     if (purchaseInFlightRef.current) return;
+    if (loadingCheckoutStore) {
+      Alert.alert(t('checkout.incompleteTitle'), t('checkout.preparing'));
+      return;
+    }
     if (!isLoggedIn || !token) {
       router.push({ pathname: '/login', params: { redirect: 'checkout' } });
       return;
@@ -602,26 +713,80 @@ export default function CheckoutScreen() {
       ]);
       return;
     }
-    if (paymentMethod === 'gpay' && !canPayWithGpay) {
-      Alert.alert(t('checkout.insufficientTitle'), t('checkout.insufficientMessage'));
-      return;
-    }
-
     purchaseInFlightRef.current = true;
     setSubmitting(true);
     try {
+      const freshLines = await hydrateCheckoutLines(lines);
+      const outOfStock = freshLines.find((line) => {
+        const stock = Number(line.maxStock);
+        return Number.isFinite(stock) && Math.max(1, Number(line.quantity || 1)) > stock;
+      });
+      if (outOfStock) {
+        Alert.alert(
+          t('checkout.incompleteTitle'),
+          t('checkout.stockUnavailable', { product: outOfStock.title }),
+        );
+        return;
+      }
+      setLines(freshLines);
+      await persistCheckoutLines(freshLines);
+
+      const freshPromoItems = freshLines.map((line) => {
+        const unitPrice = resolveUnitPrice(
+          {
+            regularPrice: parseMoney(line.regularPrice, parseMoney(line.price)),
+            gpayPrice: parseMoney(line.gpayPrice),
+          },
+          paymentMethod,
+        );
+        return {
+          productId: line.productId,
+          subtotal: unitPrice * Math.max(1, Number(line.quantity || 1)),
+        };
+      });
+      const freshSubtotal = freshPromoItems.reduce((sum, item) => sum + item.subtotal, 0);
+      let confirmedPromo = appliedPromo;
+      if (appliedPromo) {
+        const promoResult = await validatePromoCode(token, {
+          code: appliedPromo.code,
+          subtotal: freshSubtotal,
+          productIds: freshPromoItems.map((item) => item.productId),
+          items: freshPromoItems,
+        });
+        if (!promoResult.success || !promoResult.data) {
+          setAppliedPromo(null);
+          setPromoError(promoResult.message || t('checkout.promoInvalid'));
+          Alert.alert(t('checkout.incompleteTitle'), promoResult.message || t('checkout.promoInvalid'));
+          return;
+        }
+        confirmedPromo = promoResult.data;
+        setAppliedPromo(promoResult.data);
+      }
+      const confirmedDiscount = Math.min(
+        freshSubtotal,
+        Math.max(0, Number(confirmedPromo?.discount_amount || 0)),
+      );
+      const expectedTotal = Math.max(0, freshSubtotal + deliveryFee - confirmedDiscount);
+      if (paymentMethod === 'gpay') {
+        if (gpayBalance === null) {
+          Alert.alert(t('checkout.confirmFailTitle'), t('checkout.gpayUnavailable'));
+          return;
+        }
+        if (gpayBalance < expectedTotal) {
+          Alert.alert(t('checkout.insufficientTitle'), t('checkout.insufficientMessage'));
+          return;
+        }
+      }
+
       const idempotencyKey =
         idempotencyKeyRef.current ||
         `checkout-${user?.id || 'customer'}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
       idempotencyKeyRef.current = idempotencyKey;
       const result = await createOrderBatch(token, {
         idempotency_key: idempotencyKey,
-        items: lines.map((line) => ({
+        items: freshLines.map((line) => ({
           productId: line.productId,
-          variantId:
-            line.variantId && !line.variantId.startsWith('legacy-')
-              ? line.variantId
-              : undefined,
+          variantId: normalizeVariantId(line.variantId),
           variantLabel: line.variantLabel,
           quantity: Math.max(1, Number(line.quantity || 1)),
         })),
@@ -630,7 +795,7 @@ export default function CheckoutScreen() {
         buyer_nome: buyerNome.trim(),
         buyer_apelido: buyerApelido.trim(),
         buyer_telefone: buyerTelefone.trim(),
-        promo_code: appliedPromo?.code,
+        promo_code: confirmedPromo?.code,
       });
 
       if (!result.success) {
@@ -642,7 +807,12 @@ export default function CheckoutScreen() {
       const lastCreated = result.data.orders[result.data.orders.length - 1];
       const chargedTotal = Number(result.data.total || 0);
       const lastOrder = lastCreated
-        ? { id: lastCreated.id, orderNumber: lastCreated.order_number }
+        ? {
+            id: lastCreated.id,
+            orderNumber: lastCreated.order_number,
+            orderNumbers: result.data.orders.map((order) => order.order_number),
+            chargedTotal,
+          }
         : null;
 
       if (!lastOrder) {
@@ -656,34 +826,40 @@ export default function CheckoutScreen() {
         if (wallet.success) setGpayBalance(wallet.data.balance);
       }
 
+      if (Math.abs(chargedTotal - expectedTotal) >= 1) {
+        Alert.alert(
+          t('checkout.totalUpdatedTitle'),
+          t('checkout.totalUpdatedMessage', {
+            total: paymentMethod === 'gpay' ? formatGcoin(chargedTotal) : formatCfa(chargedTotal),
+          }),
+        );
+      }
+
       const purchasedIds = new Set(
-        lines.map((line) => line.cartItemId || `${line.productId}:${line.variantId || ''}`)
+        freshLines.flatMap((line) => [
+          cartItemId(line.productId, line.variantId),
+          ...(line.cartItemId ? [line.cartItemId] : []),
+        ]),
       );
       try {
         const cartRaw = await getCartJson();
         if (cartRaw) {
-          const parsedCart: unknown = JSON.parse(cartRaw);
-          if (!Array.isArray(parsedCart)) throw new Error('Carrinho local inválido');
-          const cartList = parsedCart as Array<{
-            id: string;
-            productId?: string;
-            variantId?: string;
-          }>;
+          const cartList = parseCartItems(cartRaw);
           const nextCart = cartList.filter((item) => {
-            const key = item.id || `${item.productId}:${item.variantId || ''}`;
+            const key = item.id || cartItemId(item.productId || '', item.variantId);
             return !purchasedIds.has(key);
           });
           await setCartJson(JSON.stringify(nextCart));
+          void syncCartToServer(token, nextCart);
         }
       } catch (error) {
         console.log('Erro ao limpar itens comprados do carrinho:', error);
-        await setCartJson('[]');
       }
 
       await clearCheckoutDraft();
       idempotencyKeyRef.current = null;
 
-      const itemLines = lines
+      const itemLines = freshLines
         .map(
           (line) =>
             `• ${line.title || line.productId} × ${Math.max(1, Number(line.quantity || 1))}` +
@@ -700,7 +876,9 @@ export default function CheckoutScreen() {
           `Telefone: ${buyerTelefone.trim()}`,
           `Pagamento: ${paymentMethod === 'gpay' ? 'GPay' : 'Dinheiro na entrega'}`,
           `Fulfilled: ${orderMethod}`,
-          `Total: ${chargedTotal.toLocaleString()} CFA`,
+          `Total: ${
+            paymentMethod === 'gpay' ? formatGcoin(chargedTotal) : formatCfa(chargedTotal)
+          }`,
           '',
           'Itens:',
           itemLines,
@@ -712,7 +890,8 @@ export default function CheckoutScreen() {
           buyer_telefone: buyerTelefone.trim(),
           payment_method: paymentMethod,
           fulfillment: orderMethod,
-          total_cfa: chargedTotal,
+          total: chargedTotal,
+          total_unit: paymentMethod === 'gpay' ? 'GCoin' : 'CFA',
           items: itemLines,
         },
       });
@@ -795,7 +974,11 @@ export default function CheckoutScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionEyebrow}>{t('checkout.sectionProduct')}</Text>
             {lines.map((line, index) => {
-              const unitPrice = Number(line.price || 0);
+              const regularPrice = parseMoney(line.regularPrice, parseMoney(line.price));
+              const unitPrice = resolveUnitPrice(
+                { regularPrice, gpayPrice: parseMoney(line.gpayPrice) },
+                paymentMethod,
+              );
               const quantity = Math.max(1, Number(line.quantity || 1));
               const lineTotal = unitPrice * quantity;
               return (
@@ -810,9 +993,13 @@ export default function CheckoutScreen() {
                       <Text style={styles.productVariant} numberOfLines={2}>{line.variantLabel}</Text>
                     )}
                     <Text style={styles.productMeta}>
-                      {quantity} × {unitPrice.toLocaleString()} CFA
+                      {quantity} × {formatCfa(regularPrice)}
                     </Text>
-                    <Text style={styles.productPrice}>{lineTotal.toLocaleString()} CFA</Text>
+                    <Text style={styles.productPrice}>
+                      {paymentMethod === 'gpay'
+                        ? `GPay: ${formatGcoin(lineTotal)}`
+                        : formatCfa(lineTotal)}
+                    </Text>
                   </View>
                 </View>
               );
@@ -1049,7 +1236,7 @@ export default function CheckoutScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.payTitle}>{t('checkout.payGpay')}</Text>
                 <Text style={styles.paySub}>
-                  {t('checkout.gpayBalance', { balance: gpayBalance.toLocaleString() })}
+                  {t('checkout.gpayBalance', { balance: (gpayBalance ?? 0).toLocaleString() })}
                 </Text>
               </View>
               <Ionicons
@@ -1061,7 +1248,9 @@ export default function CheckoutScreen() {
 
             <View style={styles.gpayBalanceBox}>
               <Text style={styles.gpayBalanceLabel}>{t('checkout.gpayLabel')}</Text>
-              <Text style={styles.gpayBalanceValue}>{gpayBalance.toLocaleString()} GCoin</Text>
+              <Text style={styles.gpayBalanceValue}>
+                {gpayBalance === null ? t('checkout.gpayUnavailable') : formatGcoin(gpayBalance)}
+              </Text>
             </View>
             <Text style={[styles.helperText, paymentMethod === 'gpay' && !canPayWithGpay && styles.helperDanger]}>
               {paymentHint}
@@ -1142,14 +1331,14 @@ export default function CheckoutScreen() {
             <Text style={styles.sectionEyebrow}>{t('checkout.sectionTotals')}</Text>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t('checkout.productSubtotal')}</Text>
-              <Text style={styles.summaryValue}>{subtotal.toLocaleString()} CFA</Text>
+              <Text style={styles.summaryValue}>{formatPaymentAmount(subtotal)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 {orderMethod === 'entrega' ? t('checkout.deliveryFee') : t('checkout.deliveryFeePickup')}
               </Text>
               <Text style={styles.summaryValue}>
-                {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} CFA` : t('common.free')}
+                {deliveryFee > 0 ? formatPaymentAmount(deliveryFee) : t('common.free')}
               </Text>
             </View>
             {discountAmount > 0 ? (
@@ -1159,7 +1348,7 @@ export default function CheckoutScreen() {
                   {appliedPromo ? ` (${appliedPromo.code})` : ''}
                 </Text>
                 <Text style={[styles.summaryValue, { color: C.accent }]}>
-                  −{discountAmount.toLocaleString()} CFA
+                  −{formatPaymentAmount(discountAmount)}
                 </Text>
               </View>
             ) : null}
@@ -1176,7 +1365,7 @@ export default function CheckoutScreen() {
             <View style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>{t('checkout.totalToPay')}</Text>
-              <Text style={styles.totalValue}>{total.toLocaleString()} CFA</Text>
+              <Text style={styles.totalValue}>{formatPaymentAmount(total)}</Text>
             </View>
           </View>
         </ScrollView>
@@ -1185,14 +1374,15 @@ export default function CheckoutScreen() {
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         <View style={styles.bottomTotal}>
           <Text style={styles.bottomTotalLabel}>{t('common.total')}</Text>
-          <Text style={styles.bottomTotalValue}>{total.toLocaleString()} CFA</Text>
+          <Text style={styles.bottomTotalValue}>{formatPaymentAmount(total)}</Text>
         </View>
         <TouchableOpacity
           style={[
             styles.buyBtn,
-            (submitting || (paymentMethod === 'gpay' && !canPayWithGpay)) && styles.buyBtnDisabled,
+            (submitting || loadingCheckoutStore || (paymentMethod === 'gpay' && !canPayWithGpay)) &&
+              styles.buyBtnDisabled,
           ]}
-          disabled={submitting || (paymentMethod === 'gpay' && !canPayWithGpay)}
+          disabled={submitting || loadingCheckoutStore || (paymentMethod === 'gpay' && !canPayWithGpay)}
           onPress={handleConfirmPurchase}
           activeOpacity={0.9}
         >

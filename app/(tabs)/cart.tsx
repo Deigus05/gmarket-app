@@ -28,28 +28,12 @@ import { StoreAvatar } from '@/components/StoreAvatar';
 import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { getCartJson, setCartJson, setCheckoutDraftJson } from '@/lib/cartStorage';
+import { type CartItem, parseCartItems } from '@/lib/cartTypes';
 import { optimizedImageUrl } from '@/lib/imageOptimization';
+import { normalizeVariantId, productPrices } from '@/lib/productPricing';
 
 const GOLD = '#D4A017';
 const GOLD_LIGHT = '#F5D76E';
-
-interface CartItem {
-  id: string;
-  title: string;
-  price: number;
-  image: string;
-  quantity: number;
-  selected: boolean;
-  productId?: string;
-  variantId?: string;
-  variantLabel?: string;
-  maxStock?: number;
-  storeId?: string;
-  storeName?: string;
-  storeLogo?: string;
-  storeCover?: string;
-  storeVerified?: boolean;
-}
 
 type StoreGroup = {
   key: string;
@@ -124,6 +108,15 @@ async function enrichCartStoreInfo(items: CartItem[]): Promise<CartItem[]> {
 
   return items.map((item) => {
     const product = productMap.get(productIdFromCartItem(item) || '');
+    const liveVariant = item.variantId
+      ? product?.variants?.combinations?.find((variant) => variant.id === item.variantId)
+      : product?.variants?.combinations?.find((variant) => variant.is_default)
+        ?? product?.variants?.combinations?.[0];
+    const prices = productPrices(
+      liveVariant?.preco ?? product?.preco ?? item.regularPrice,
+      liveVariant?.preco_gpay ?? product?.preco_gpay ?? item.gpayPrice,
+    );
+    const maxStock = liveVariant?.stock ?? product?.stock ?? item.maxStock;
     const byName = item.storeName
       ? storesByName.get(item.storeName.trim().toLowerCase())
       : undefined;
@@ -149,7 +142,10 @@ async function enrichCartStoreInfo(items: CartItem[]): Promise<CartItem[]> {
       storeName === item.storeName &&
       storeLogo === item.storeLogo &&
       storeCover === item.storeCover &&
-      storeVerified === item.storeVerified
+      storeVerified === item.storeVerified &&
+      prices.regularPrice === item.regularPrice &&
+      prices.gpayPrice === item.gpayPrice &&
+      maxStock === item.maxStock
     ) {
       return item;
     }
@@ -161,6 +157,9 @@ async function enrichCartStoreInfo(items: CartItem[]): Promise<CartItem[]> {
       storeLogo,
       storeCover,
       storeVerified,
+      ...prices,
+      price: prices.regularPrice,
+      maxStock,
     };
   });
 }
@@ -321,9 +320,7 @@ export default function CartScreen() {
             return;
           }
 
-          const parsedValue: unknown = JSON.parse(storedCart);
-          if (!Array.isArray(parsedValue)) throw new Error('Carrinho local inválido');
-          const parsed = parsedValue as CartItem[];
+          const parsed = parseCartItems(storedCart);
           setCartItems(parsed);
           hasLoadedRef.current = true;
           if (active) setLoading(false);
@@ -427,7 +424,7 @@ export default function CartScreen() {
   );
 
   const valorTotal = selectedItems.reduce(
-    (acc, item) => acc + item.price * item.quantity,
+    (acc, item) => acc + item.regularPrice * item.quantity,
     0
   );
 
@@ -438,17 +435,16 @@ export default function CartScreen() {
 
     const items = selectedItems.map((item) => {
       const productId = item.productId || item.id.split(':')[0];
-      const variantId =
-        item.variantId && !item.variantId.startsWith('legacy-')
-          ? item.variantId
-          : undefined;
+      const variantId = normalizeVariantId(item.variantId);
 
       return {
         productId,
         variantId,
         title: item.title,
         image: item.image,
-        price: String(item.price),
+        price: String(item.regularPrice),
+        regularPrice: String(item.regularPrice),
+        gpayPrice: String(item.gpayPrice),
         quantity: String(item.quantity),
         variantLabel: item.variantLabel || '',
         maxStock: item.maxStock != null ? String(item.maxStock) : undefined,
@@ -585,7 +581,15 @@ export default function CartScreen() {
                           </Text>
                         )}
                         <Text style={styles.productPrice}>
-                          {(item.price * item.quantity).toLocaleString()} CFA
+                          {(item.regularPrice * item.quantity).toLocaleString()} CFA
+                        </Text>
+                        <Text style={styles.variantLabel}>
+                          GPay:{' '}
+                          {(
+                            (item.gpayPrice > 0 ? item.gpayPrice : item.regularPrice) *
+                            item.quantity
+                          ).toLocaleString()}{' '}
+                          GCoin
                         </Text>
 
                         <View style={styles.productActions}>

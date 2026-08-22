@@ -29,7 +29,9 @@ import {
   setAccountItem,
 } from '@/lib/accountStorage';
 import {
+  formatProductPrice,
   getFavoriteProducts,
+  normalizeProductPrice,
   removeProductFavorite,
   subscribeProductFavorites,
   type FavProduct,
@@ -98,7 +100,7 @@ export default function FavoritesScreen() {
       try {
         const [storedProps, products, followed] = await Promise.all([
           getFavoriteProperties(),
-          getFavoriteProducts(),
+          getFavoriteProducts({ refresh: true }),
           isLoggedIn && token
             ? getFollowedStores(token)
             : Promise.resolve({ success: false as const, message: '' }),
@@ -282,6 +284,8 @@ export default function FavoritesScreen() {
               FALLBACK_PRODUCT_IMAGE,
               'card',
             );
+            const regularPrice = normalizeProductPrice(item.preco);
+            const gcoinPrice = normalizeProductPrice(item.preco_gpay) || regularPrice;
             return (
               <TouchableOpacity
                 style={styles.productFavCard}
@@ -305,16 +309,16 @@ export default function FavoritesScreen() {
                   {item.titulo}
                 </Text>
                 <Text style={styles.productFavPrice}>
-                  {Number(item.preco || 0).toLocaleString()} CFA
+                  {formatProductPrice(regularPrice)} CFA
                 </Text>
-                <View style={styles.productFavGcoinRow}>
+                {gcoinPrice > 0 ? <View style={styles.productFavGcoinRow}>
                   <Text style={styles.productFavGcoin}>
-                    {Number(item.preco_gpay || 0).toLocaleString()} GCoin
+                    {formatProductPrice(gcoinPrice)} GCoin
                   </Text>
                   <View style={styles.productFavGpayBadge}>
                     <Text style={styles.productFavGpayText}>GPay</Text>
                   </View>
-                </View>
+                </View> : null}
               </TouchableOpacity>
             );
           }}

@@ -5,6 +5,7 @@ import {
   subscribeAccountScope,
 } from '@/lib/accountStorage';
 import { getProductById } from '@/components/api';
+import { parseMoney } from '@/lib/productPricing';
 
 /** @deprecated use AccountDataKey.favProducts — mantido para imports existentes */
 export const FAV_PRODUCTS_KEY = AccountDataKey.favProducts;
@@ -18,6 +19,14 @@ export interface FavProduct {
   image_urls?: string[] | null;
   store_id?: string | null;
   category_id?: string | null;
+}
+
+export function normalizeProductPrice(value: unknown): number {
+  return parseMoney(value);
+}
+
+export function formatProductPrice(value: unknown): string {
+  return normalizeProductPrice(value).toLocaleString();
 }
 
 type FavListener = (products: FavProduct[]) => void;
@@ -54,8 +63,8 @@ export function toFavProduct(product: {
   return {
     id: product.id,
     titulo: product.titulo,
-    preco: Number(product.preco) || 0,
-    preco_gpay: Number(product.preco_gpay) || 0,
+    preco: normalizeProductPrice(product.preco),
+    preco_gpay: normalizeProductPrice(product.preco_gpay),
     image_url: product.image_url ?? null,
     image_urls: product.image_urls ?? undefined,
     store_id: product.store_id || product.store?.id || null,
@@ -69,16 +78,20 @@ function isFavProduct(value: unknown): value is FavProduct {
   return typeof item.id === 'string' && typeof item.titulo === 'string';
 }
 
-async function hydrateIds(ids: string[]): Promise<FavProduct[]> {
-  const products: FavProduct[] = [];
-  for (const id of ids) {
-    const live = await getProductById(id);
-    if (live) products.push(toFavProduct(live));
-  }
-  return products;
+async function hydrateProducts(products: FavProduct[]): Promise<FavProduct[]> {
+  return Promise.all(
+    products.map(async (snapshot) => {
+      try {
+        const live = await getProductById(snapshot.id, { forceRefresh: true });
+        return live ? toFavProduct(live) : snapshot;
+      } catch {
+        return snapshot;
+      }
+    }),
+  );
 }
 
-export async function getFavoriteProducts(): Promise<FavProduct[]> {
+export async function getFavoriteProducts(options?: { refresh?: boolean }): Promise<FavProduct[]> {
   try {
     const raw = await getAccountItem(AccountDataKey.favProducts, { allowGuest: true });
     if (!raw) return [];
@@ -87,12 +100,29 @@ export async function getFavoriteProducts(): Promise<FavProduct[]> {
     if (!Array.isArray(parsed) || parsed.length === 0) return [];
 
     if (typeof parsed[0] === 'string') {
-      const products = await hydrateIds(parsed.filter((id): id is string => typeof id === 'string'));
+      const ids = parsed.filter((id): id is string => typeof id === 'string');
+      const products = (
+        await Promise.all(
+          ids.map(async (id) => {
+            const live = await getProductById(id, { forceRefresh: true });
+            return live ? toFavProduct(live) : null;
+          }),
+        )
+      ).filter((product): product is FavProduct => product != null);
       await setAccountItem(AccountDataKey.favProducts, JSON.stringify(products), { allowGuest: true });
       return products;
     }
 
-    return parsed.filter(isFavProduct);
+    const products = parsed.filter(isFavProduct).map((product) => ({
+      ...product,
+      preco: normalizeProductPrice(product.preco),
+      preco_gpay: normalizeProductPrice(product.preco_gpay),
+    }));
+    if (!options?.refresh) return products;
+    const hydrated = await hydrateProducts(products);
+    await setAccountItem(AccountDataKey.favProducts, JSON.stringify(hydrated), { allowGuest: true });
+    notify(hydrated);
+    return hydrated;
   } catch (error) {
     console.log('Erro ao ler favoritos de produtos:', error);
     return [];
@@ -118,8 +148,8 @@ export async function toggleProductFavorite(product: FavProduct): Promise<{
   const snapshot: FavProduct = {
     id: product.id,
     titulo: product.titulo,
-    preco: Number(product.preco) || 0,
-    preco_gpay: Number(product.preco_gpay) || 0,
+    preco: normalizeProductPrice(product.preco),
+    preco_gpay: normalizeProductPrice(product.preco_gpay),
     image_url: product.image_url ?? null,
     image_urls: product.image_urls ?? undefined,
     store_id: product.store_id ?? null,

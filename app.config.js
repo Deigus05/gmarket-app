@@ -3,8 +3,8 @@
  * Sem esta key, o MapView fica em branco em builds nativos
  * (APK/AAB/dev client). No Expo Go a key da Expo cobre o mapa.
  *
- * Defina GOOGLE_MAPS_API_KEY no .env (local) ou no EAS Environment
- * (development / preview / production).
+ * Defina GOOGLE_MAPS_API_KEY no .env (local), no Codemagic
+ * (Environment variables) ou no EAS Environment.
  *
  * DEPLOY_TARGET=gh-pages → baseUrl /gmarket-app (GitHub Pages).
  * Cloudflare / domínio próprio → sem DEPLOY_TARGET (raiz /).
@@ -18,10 +18,12 @@ module.exports = ({ config }) => {
   ).replace(/\/$/, '');
   const baseUrl = deployTarget === 'gh-pages' ? '/gmarket-app' : '';
 
-  if (isEasBuild && !googleMapsApiKey) {
+  const isCiBuild = isEasBuild || process.env.CI === '1' || Boolean(process.env.CM_BUILD_DIR);
+  if (isCiBuild && !googleMapsApiKey) {
     console.warn(
-      '[GMarket] GOOGLE_MAPS_API_KEY ausente neste build EAS — MapView ficará em branco. ' +
-        'Adicione com: eas env:create --name GOOGLE_MAPS_API_KEY --environment <development|preview|production> --visibility sensitive'
+      '[GMarket] GOOGLE_MAPS_API_KEY ausente neste build — MapView ficará em branco. ' +
+        'Codemagic: Environment variables → GOOGLE_MAPS_API_KEY. ' +
+        'EAS: eas env:create --name GOOGLE_MAPS_API_KEY --environment <development|preview|production> --visibility sensitive'
     );
   }
 

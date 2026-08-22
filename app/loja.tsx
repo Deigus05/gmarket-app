@@ -28,6 +28,7 @@ import { useLocale } from '@/components/LocaleContext';
 import { useAppTheme, type AppUI } from '@/components/tema';
 import { listImageUrl, optimizedImageUrl } from '@/lib/imageOptimization';
 import { getStoreReviewByStoreId } from '@/lib/localReviews';
+import { formatProductPrice, normalizeProductPrice } from '@/lib/productFavorites';
 
 const { width } = Dimensions.get('window');
 const GRID_PAD = 4;
@@ -306,6 +307,8 @@ export default function LojaPerfilScreen() {
           <View style={styles.grid}>
             {filteredProducts.map((item) => {
               const imageUri = listImageUrl(item.image_urls, item.image_url, FALLBACK_IMAGE, 'card');
+              const regularPrice = normalizeProductPrice(item.preco);
+              const gcoinPrice = normalizeProductPrice(item.preco_gpay) || regularPrice;
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -330,17 +333,17 @@ export default function LojaPerfilScreen() {
                   </Text>
                   <View style={styles.priceContainer}>
                     <Text style={styles.normalPrice}>
-                      {Number(item.preco).toLocaleString()} CFA
+                      {formatProductPrice(regularPrice)} CFA
                     </Text>
                   </View>
-                  <View style={styles.gcoinRow}>
+                  {gcoinPrice > 0 ? <View style={styles.gcoinRow}>
                     <Text style={styles.gcoinPrice}>
-                      {Number(item.preco_gpay).toLocaleString()} GCoin
+                      {formatProductPrice(gcoinPrice)} GCoin
                     </Text>
                     <View style={styles.gpayBadge}>
                       <Text style={styles.gpayBadgeText}>GPay</Text>
                     </View>
-                  </View>
+                  </View> : null}
                 </TouchableOpacity>
               );
             })}
