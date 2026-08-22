@@ -46,6 +46,11 @@ html.gm-mobile-doc-scroll #root {
   min-height: 100dvh !important;
   overflow: visible !important;
 }
+html.gm-mobile-doc-scroll .gm-unlock-scroll {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
 /* Fundos claros típicos do SSR RN-web — forçar cinza no modo escuro do telemóvel. */
 @media (prefers-color-scheme: dark) {
   html, body, #root {

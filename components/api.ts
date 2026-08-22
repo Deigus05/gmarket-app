@@ -1486,7 +1486,6 @@ export async function createOrderBatch(
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        'Idempotency-Key': input.idempotency_key,
       },
       body: JSON.stringify(input),
     });

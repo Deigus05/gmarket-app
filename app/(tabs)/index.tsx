@@ -21,6 +21,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ImageStyle,
   type ListRenderItemInfo,
 } from 'react-native';
 import Animated, {
@@ -61,11 +62,9 @@ import {
 } from '@/components/recommendations';
 import { HOME_TAB_PRESS_EVENT } from '@/components/tabs/homeTabPress';
 import {
-  lockWindowScroll,
   readWindowScrollY,
   scrollWindowToTop,
   unlockMobileDocumentScroll,
-  unlockWindowScroll,
 } from '@/lib/webDocumentScroll';
 import { useAppTheme, type HomePalette } from '@/components/tema';
 import { useBreakpoint, type BreakpointLayout } from '@/hooks/useBreakpoint';
@@ -312,7 +311,7 @@ const BannerCarousel = memo(function BannerCarousel({
                   </View>
                   <Image
                     source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
-                    style={styles.promoImageDesktop}
+                    style={styles.promoImageDesktop as ImageStyle}
                     contentFit="cover"
                     cachePolicy="memory-disk"
                     recyclingKey={item.id}
@@ -332,7 +331,7 @@ const BannerCarousel = memo(function BannerCarousel({
                   </View>
                   <Image
                     source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
-                    style={styles.promoImage}
+                    style={styles.promoImage as ImageStyle}
                     contentFit="cover"
                     cachePolicy="memory-disk"
                     recyclingKey={item.id}
@@ -349,7 +348,7 @@ const BannerCarousel = memo(function BannerCarousel({
             >
               <Image
                 source={{ uri: optimizedImageUrl(item.image_url, 'card') }}
-                style={[styles.adImage, { width: pageWidth }]}
+                style={[styles.adImage as ImageStyle, { width: pageWidth }]}
                 contentFit="cover"
                 cachePolicy="memory-disk"
                 recyclingKey={item.id}
@@ -465,7 +464,7 @@ const FeedAdCard = memo(function FeedAdCard({
       <View style={[styles.imageContainer, { width: columnWidth }]}>
         <Image
           source={{ uri: optimizedImageUrl(banner.image_url, 'card') }}
-          style={[styles.productImage, { width: columnWidth }]}
+          style={[styles.productImage as ImageStyle, { width: columnWidth }]}
           contentFit="cover"
           cachePolicy="memory-disk"
           recyclingKey={banner.id}
@@ -651,7 +650,7 @@ const FeedProductCard = memo(function FeedProductCard({
               >
                 <Image
                   source={{ uri }}
-                  style={[styles.productImage, { width: columnWidth }]}
+                  style={[styles.productImage as ImageStyle, { width: columnWidth }]}
                   contentFit="cover"
                   transition={160}
                   cachePolicy="memory-disk"
@@ -669,7 +668,7 @@ const FeedProductCard = memo(function FeedProductCard({
           >
             <Image
               source={{ uri: images[0] }}
-              style={[styles.productImage, { width: columnWidth }]}
+              style={[styles.productImage as ImageStyle, { width: columnWidth }]}
               contentFit="cover"
               transition={160}
               cachePolicy="memory-disk"
@@ -713,7 +712,7 @@ const FeedProductCard = memo(function FeedProductCard({
               >
                 <Image
                   source={G_CART_LOGO}
-                  style={styles.cartLogo}
+                  style={styles.cartLogo as ImageStyle}
                   contentFit="contain"
                 />
               </View>
@@ -1727,14 +1726,15 @@ export default function HomeScreen() {
   );
 
   const lockFeedScroll = useCallback(() => {
-    // setNativeProps não existe no DOM (web) — optional call evita o crash no telemóvel.
+    // Na web, desativar a lista aplica `touch-action: none` e bloqueia o
+    // document-scroll. O navegador já resolve o eixo da galeria horizontal.
+    if (Platform.OS === 'web') return;
     homeScrollRef.current?.setNativeProps?.({ scrollEnabled: false });
-    if (Platform.OS === 'web') lockWindowScroll();
   }, []);
 
   const unlockFeedScroll = useCallback(() => {
+    if (Platform.OS === 'web') return;
     homeScrollRef.current?.setNativeProps?.({ scrollEnabled: true });
-    if (Platform.OS === 'web') unlockWindowScroll();
   }, []);
 
   const renderFeedItem = useCallback(
@@ -1862,7 +1862,9 @@ export default function HomeScreen() {
             overScrollMode="never"
             onScroll={scrollHandler}
             scrollEventThrottle={16}
-            scrollEnabled={Platform.OS === 'web' && !isDesktop ? false : !magicRunning}
+            // No document-scroll web, o CSS deixa a lista sem overflow próprio.
+            // Manter true evita o `touch-action: none` injetado pelo RN Web.
+            scrollEnabled={!magicRunning}
             contentInsetAdjustmentBehavior="never"
             refreshControl={
               magicRunning ? undefined : (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Dimensions,
+  Platform,
   StyleSheet,
   View,
 } from 'react-native';
@@ -46,6 +47,10 @@ export default function TornadoOverlay({
       setReady(false);
       return;
     }
+    if (Platform.OS === 'web') {
+      setReady(true);
+      return;
+    }
     if (ready) return;
     const fallback = setTimeout(() => setReady(true), LOAD_FALLBACK_MS);
     return () => clearTimeout(fallback);
@@ -53,7 +58,7 @@ export default function TornadoOverlay({
 
   // Remount DOM at full size on show — prewarm is 2×2 and breaks the canvas field.
   useEffect(() => {
-    if (visible) setReady(false);
+    if (visible && Platform.OS !== 'web') setReady(false);
   }, [visible]);
 
   if (!mounted) return null;

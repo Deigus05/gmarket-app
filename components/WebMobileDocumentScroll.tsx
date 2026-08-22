@@ -1,14 +1,24 @@
+import { usePathname } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { unlockMobileDocumentScroll } from '@/lib/webDocumentScroll';
+import {
+  isHomeWebPath,
+  restoreMobileDocumentScroll,
+  unlockMobileDocumentScroll,
+} from '@/lib/webDocumentScroll';
 
-/** No telemóvel, o documento faz scroll para o Safari/Chrome esconderem as barras. */
+/** Document-scroll só na home. No checkout o layout volta a ecrã cheio. */
 export function WebMobileDocumentScroll() {
+  const pathname = usePathname();
+
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
-    const apply = () => unlockMobileDocumentScroll();
+    const apply = () => {
+      if (isHomeWebPath(pathname)) unlockMobileDocumentScroll();
+      else restoreMobileDocumentScroll();
+    };
     apply();
     window.addEventListener('resize', apply);
     const timer = window.setTimeout(apply, 300);
@@ -16,7 +26,7 @@ export function WebMobileDocumentScroll() {
       window.removeEventListener('resize', apply);
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }

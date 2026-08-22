@@ -4,8 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   InteractionManager,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -51,6 +51,7 @@ import { useLocale } from '@/components/LocaleContext';
 import TornadoOverlay from '@/components/TornadoOverlay';
 import { useAppTheme } from '@/components/tema';
 import { trackAnalytics } from '@/lib/analytics';
+import { confirmUser, notifyUser } from '@/lib/notify';
 import {
   cartItemId,
   formatCfa,
@@ -688,7 +689,7 @@ export default function CheckoutScreen() {
   const handleConfirmPurchase = async () => {
     if (purchaseInFlightRef.current) return;
     if (loadingCheckoutStore) {
-      Alert.alert(t('checkout.incompleteTitle'), t('checkout.preparing'));
+      notifyUser(t('checkout.incompleteTitle'), t('checkout.preparing'));
       return;
     }
     if (!isLoggedIn || !token) {
@@ -696,19 +697,21 @@ export default function CheckoutScreen() {
       return;
     }
     if (lines.length === 0) {
-      Alert.alert(t('checkout.incompleteTitle'), t('checkout.incompleteMessage'));
+      notifyUser(t('checkout.incompleteTitle'), t('checkout.incompleteMessage'));
       return;
     }
     if (!buyerNome.trim() || !buyerTelefone.trim()) {
-      Alert.alert(t('checkout.buyerTitle'), t('checkout.buyerFill'));
+      notifyUser(t('checkout.buyerTitle'), t('checkout.buyerFill'));
       setEditingBuyer(true);
       return;
     }
     if (orderMethod === 'entrega' && !user?.endereco?.details) {
-      Alert.alert(t('checkout.locationTitle'), t('checkout.locationNeeded'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('checkout.editLocation'), onPress: handleEditAddress },
-      ]);
+      const edit = await confirmUser(
+        t('checkout.locationTitle'),
+        t('checkout.locationNeeded'),
+        t('checkout.editLocation'),
+      );
+      if (edit) handleEditAddress();
       return;
     }
     purchaseInFlightRef.current = true;
@@ -720,7 +723,7 @@ export default function CheckoutScreen() {
         return Number.isFinite(stock) && Math.max(1, Number(line.quantity || 1)) > stock;
       });
       if (outOfStock) {
-        Alert.alert(
+        notifyUser(
           t('checkout.incompleteTitle'),
           t('checkout.stockUnavailable', { product: outOfStock.title }),
         );
@@ -754,7 +757,7 @@ export default function CheckoutScreen() {
         if (!promoResult.success || !promoResult.data) {
           setAppliedPromo(null);
           setPromoError(promoResult.message || t('checkout.promoInvalid'));
-          Alert.alert(t('checkout.incompleteTitle'), promoResult.message || t('checkout.promoInvalid'));
+          notifyUser(t('checkout.incompleteTitle'), promoResult.message || t('checkout.promoInvalid'));
           return;
         }
         confirmedPromo = promoResult.data;
@@ -767,11 +770,11 @@ export default function CheckoutScreen() {
       const expectedTotal = Math.max(0, freshSubtotal + deliveryFee - confirmedDiscount);
       if (paymentMethod === 'gpay') {
         if (gpayBalance === null) {
-          Alert.alert(t('checkout.confirmFailTitle'), t('checkout.gpayUnavailable'));
+          notifyUser(t('checkout.confirmFailTitle'), t('checkout.gpayUnavailable'));
           return;
         }
         if (gpayBalance < expectedTotal) {
-          Alert.alert(t('checkout.insufficientTitle'), t('checkout.insufficientMessage'));
+          notifyUser(t('checkout.insufficientTitle'), t('checkout.insufficientMessage'));
           return;
         }
       }
@@ -798,7 +801,7 @@ export default function CheckoutScreen() {
 
       if (!result.success) {
         dismissTornado();
-        Alert.alert(t('checkout.confirmFailTitle'), result.message);
+        notifyUser(t('checkout.confirmFailTitle'), result.message);
         return;
       }
 
@@ -815,7 +818,7 @@ export default function CheckoutScreen() {
 
       if (!lastOrder) {
         dismissTornado();
-        Alert.alert(t('common.error'), t('checkout.confirmFailMessage'));
+        notifyUser(t('common.error'), t('checkout.confirmFailMessage'));
         return;
       }
 
@@ -890,7 +893,7 @@ export default function CheckoutScreen() {
       setShowTornado(true);
     } catch {
       dismissTornado();
-      Alert.alert(t('common.error'), t('checkout.confirmFailMessage'));
+      notifyUser(t('common.error'), t('checkout.confirmFailMessage'));
     } finally {
       purchaseInFlightRef.current = false;
       if (mountedRef.current) setSubmitting(false);
@@ -1381,13 +1384,21 @@ export default function CheckoutScreen() {
         </TouchableOpacity>
       </View>
 
-      <TornadoOverlay visible={showTornado} prewarm>
-        {!!successOrder && (
-          <View style={styles.successOverlay} pointerEvents="box-none">
+      {Platform.OS === 'web' ? (
+        showTornado && successOrder ? (
+          <View style={styles.webSuccessLayer} pointerEvents="box-none">
             {successCard}
           </View>
-        )}
-      </TornadoOverlay>
+        ) : null
+      ) : (
+        <TornadoOverlay visible={showTornado} prewarm>
+          {!!successOrder && (
+            <View style={styles.successOverlay} pointerEvents="box-none">
+              {successCard}
+            </View>
+          )}
+        </TornadoOverlay>
+      )}
     </View>
   );
 }
@@ -1610,7 +1621,8 @@ function createStyles(C: CheckoutPalette, isDark: boolean) {
   totalValue: { fontSize: 18, fontWeight: '900', color: C.accent },
 
   bottomBar: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    zIndex: 30,
     left: 0,
     right: 0,
     bottom: 0,
@@ -1641,6 +1653,14 @@ function createStyles(C: CheckoutPalette, isDark: boolean) {
 
   successOverlay: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+  },
+  webSuccessLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: 'rgba(11,18,32,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 36,

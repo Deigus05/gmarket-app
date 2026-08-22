@@ -45,7 +45,15 @@ workflows:
         script: |
           set -euo pipefail
           # NODE_ENV=production would otherwise omit TypeScript and @types/*.
-          npm ci --include=dev || npm install --include=dev
+          npm ci --include=dev
+      - name: Generate Expo route types
+        script: |
+          set -euo pipefail
+          npx expo customize tsconfig.json
+      - name: Verify Expo SDK
+        script: |
+          set -euo pipefail
+          npx expo-doctor
       - name: Verify TypeScript
         script: |
           set -euo pipefail
@@ -133,7 +141,15 @@ workflows:
         script: |
           set -euo pipefail
           # NODE_ENV=production would otherwise omit TypeScript and @types/*.
-          npm ci --include=dev || npm install --include=dev
+          npm ci --include=dev
+      - name: Generate Expo route types
+        script: |
+          set -euo pipefail
+          npx expo customize tsconfig.json
+      - name: Verify Expo SDK
+        script: |
+          set -euo pipefail
+          npx expo-doctor
       - name: Verify TypeScript
         script: |
           set -euo pipefail

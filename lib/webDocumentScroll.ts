@@ -1,6 +1,14 @@
 import { Platform } from 'react-native';
 
 const MOBILE_MAX = 899;
+const UNLOCK_CLASS = 'gm-unlock-scroll';
+
+function clearUnlockClasses() {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll(`.${UNLOCK_CLASS}`).forEach((el) => {
+    el.classList.remove(UNLOCK_CLASS);
+  });
+}
 
 function isMobileWeb() {
   return (
@@ -10,31 +18,38 @@ function isMobileWeb() {
   );
 }
 
-function setImportant(el: HTMLElement, prop: string, value: string) {
-  el.style.setProperty(prop, value, 'important');
+export function isHomeWebPath(pathname: string) {
+  return pathname === '/' || pathname === '/index' || pathname.endsWith('/(tabs)') || pathname.endsWith('/(tabs)/index');
 }
 
-/** Liberta html/body/#root e a cadeia até ao feed para o documento ser o scroller. */
+/** Só na home: o documento faz scroll (Safari/Chrome escondem as barras). */
 export function unlockMobileDocumentScroll(fromId = 'gm-home-feed') {
-  if (!isMobileWeb()) return;
+  if (!isMobileWeb()) {
+    restoreMobileDocumentScroll();
+    return;
+  }
 
+  clearUnlockClasses();
   document.documentElement.classList.add('gm-mobile-doc-scroll');
   document.body.classList.add('gm-mobile-doc-scroll');
 
-  const root = document.getElementById('root');
-  if (root) {
-    setImportant(root, 'height', 'auto');
-    setImportant(root, 'min-height', '100dvh');
-    setImportant(root, 'overflow', 'visible');
-  }
+  document.getElementById('root')?.classList.add(UNLOCK_CLASS);
 
   let el = document.getElementById(fromId);
   while (el && el !== document.body) {
-    setImportant(el, 'overflow', 'visible');
-    setImportant(el, 'height', 'auto');
-    setImportant(el, 'max-height', 'none');
+    el.classList.add(UNLOCK_CLASS);
     el = el.parentElement;
   }
+}
+
+/** Fora da home (checkout, etc.) volta ao layout app a ecrã cheio. */
+export function restoreMobileDocumentScroll() {
+  if (typeof document === 'undefined') return;
+  clearUnlockClasses();
+  document.documentElement.classList.remove('gm-mobile-doc-scroll');
+  document.body.classList.remove('gm-mobile-doc-scroll');
+  document.documentElement.style.removeProperty('overflow');
+  document.body.style.removeProperty('overflow');
 }
 
 export function lockWindowScroll() {
