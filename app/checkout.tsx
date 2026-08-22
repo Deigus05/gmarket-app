@@ -826,15 +826,6 @@ export default function CheckoutScreen() {
         if (wallet.success) setGpayBalance(wallet.data.balance);
       }
 
-      if (Math.abs(chargedTotal - expectedTotal) >= 1) {
-        Alert.alert(
-          t('checkout.totalUpdatedTitle'),
-          t('checkout.totalUpdatedMessage', {
-            total: paymentMethod === 'gpay' ? formatGcoin(chargedTotal) : formatCfa(chargedTotal),
-          }),
-        );
-      }
-
       const purchasedIds = new Set(
         freshLines.flatMap((line) => [
           cartItemId(line.productId, line.variantId),
